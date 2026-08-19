@@ -1,5 +1,5 @@
-// Command basic demonstrates the Barikoi Go SDK: a reverse geocode, an
-// autocomplete, and a route overview, with structured error handling.
+// Command basic exercises every Barikoi Go SDK API (11 endpoints) against
+// the live service, with structured error handling.
 //
 // Set BARIKOI_API_KEY before running:
 //
@@ -18,6 +18,12 @@ import (
 	bk "github.com/barikoi/barikoiapis/go/client"
 )
 
+// Common coordinates for the examples below: Barikoi HQ area, Dhaka.
+const (
+	lat = 23.806703092211507
+	lon = 90.35722628659195
+)
+
 func main() {
 	apiKey := os.Getenv("BARIKOI_API_KEY")
 	if apiKey == "" {
@@ -29,37 +35,137 @@ func main() {
 		log.Fatalf("creating client: %v", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
 
-	// Coordinates -> address.
-	place, err := c.ReverseGeocode(ctx, &bk.ReverseGeocodeRequest{
-		Latitude:  23.806703092211507,
-		Longitude: 90.35722628659195,
-		Area:      true,
-	})
-	if err != nil {
-		log.Fatalf("ReverseGeocode: %v", err)
-	}
-	fmt.Printf("Address: %s\n", place.Place.Address)
+	// --- Geocoding ---
 
-	// Partial query -> suggestions.
-	suggestions, err := c.Autocomplete(ctx, &bk.AutocompleteRequest{Q: "barikoi"})
-	if err != nil {
+	// 1. Coordinates -> address.
+	if place, err := c.ReverseGeocode(ctx, &bk.ReverseGeocodeRequest{
+		Latitude:  lat,
+		Longitude: lon,
+		Area:      true,
+	}); err != nil {
+		handleErr("ReverseGeocode", err)
+	} else {
+		fmt.Printf("1. ReverseGeocode: %s\n", place.Place.Address)
+	}
+
+	// 2. Partial query -> suggestions.
+	if suggestions, err := c.Autocomplete(ctx, &bk.AutocompleteRequest{Q: "barikoi"}); err != nil {
 		handleErr("Autocomplete", err)
 	} else {
-		fmt.Printf("Autocomplete returned %d suggestion(s)\n", len(suggestions.Places))
+		fmt.Printf("2. Autocomplete: %d suggestion(s)\n", len(suggestions.Places))
 	}
 
-	// Route between two points.
-	route, err := c.RouteOverview(ctx, &bk.RouteOverviewRequest{
+	// 3. Address string -> formatted address and coordinates.
+	if geo, err := c.Geocode(ctx, &bk.GeocodeRequest{Q: "barikoi office dhaka"}); err != nil {
+		handleErr("Geocode", err)
+	} else {
+		fmt.Printf("3. Geocode: %s (%.4f%% confidence)\n",
+			geo.GeocodedAddress.Address, geo.ConfidenceScorePercentage)
+	}
+
+	// --- Routing ---
+
+	// 4. Basic route between two points.
+	if route, err := c.RouteOverview(ctx, &bk.RouteOverviewRequest{
 		Coordinates: "90.362548828125,23.94107556246209;90.31585693359375,24.134221690669204",
-	})
-	if err != nil {
+	}); err != nil {
 		handleErr("RouteOverview", err)
 	} else if len(route.Routes) > 0 {
 		r := route.Routes[0]
-		fmt.Printf("Route: %.1f km in about %.0f minutes\n", r.Distance/1000, r.Duration/60)
+		fmt.Printf("4. RouteOverview: %.1f km in about %.0f minutes\n", r.Distance/1000, r.Duration/60)
+	}
+
+	// 5. Detailed route with turn-by-turn maneuvers.
+	if route, err := c.CalculateRoute(ctx, &bk.CalculateRouteRequest{
+		Start:       bk.Coordinate{Latitude: 23.94107556246209, Longitude: 90.362548828125},
+		Destination: bk.Coordinate{Latitude: 24.134221690669204, Longitude: 90.31585693359375},
+		Type:        "vh",
+	}); err != nil {
+		handleErr("CalculateRoute", err)
+	} else if len(route.Trip.Legs) > 0 && len(route.Trip.Legs[0].Maneuvers) > 0 {
+		fmt.Printf("5. CalculateRoute: %d maneuver(s), first: %s\n",
+			len(route.Trip.Legs[0].Maneuvers), route.Trip.Legs[0].Maneuvers[0].Instruction)
+	}
+
+	// 6. Route optimization through intermediate waypoints.
+	if opt, err := c.OptimizeRoute(ctx, &bk.OptimizeRouteRequest{
+		Source:      "23.94107556246209,90.362548828125",
+		Destination: "24.134221690669204,90.31585693359375",
+		GeoPoints: []bk.OptimizeRoutePoint{
+			{ID: 1, Point: "23.95,90.38"},
+			{ID: 2, Point: "24.05,90.33"},
+		},
+	}); err != nil {
+		handleErr("OptimizeRoute", err)
+	} else if len(opt.Paths) > 0 {
+		fmt.Printf("6. OptimizeRoute: %.1f km optimized path\n", opt.Paths[0].Distance/1000)
+	}
+
+	// 7. Raw GPS points -> road network geometry.
+	if snap, err := c.SnapToRoad(ctx, &bk.SnapToRoadRequest{
+		Points: "90.362548828125,23.94107556246209;90.35,23.96;90.34,23.98",
+	}); err != nil {
+		handleErr("SnapToRoad", err)
+	} else {
+		fmt.Printf("7. SnapToRoad: %d matched point(s), %.0f m\n",
+			len(snap.Geometry.Coordinates), snap.Distance)
+	}
+
+	// --- Search ---
+
+	// 8. Place search; the response feeds PlaceDetails below.
+	var search *bk.SearchPlaceResponse
+	if search, err = c.SearchPlace(ctx, &bk.SearchPlaceRequest{Q: "barikoi"}); err != nil {
+		handleErr("SearchPlace", err)
+	} else {
+		fmt.Printf("8. SearchPlace: %d hit(s), session %s\n", len(search.Places), search.SessionID)
+	}
+
+	// 9. Details for the first place code from the search above.
+	if search != nil && len(search.Places) > 0 {
+		if details, err := c.PlaceDetails(ctx, &bk.PlaceDetailsRequest{
+			PlaceCode: search.Places[0].PlaceCode,
+			SessionID: search.SessionID,
+		}); err != nil {
+			handleErr("PlaceDetails", err)
+		} else {
+			fmt.Printf("9. PlaceDetails: %s (%v, %v)\n",
+				details.Place.Address, details.Place.Latitude, details.Place.Longitude)
+		}
+	}
+
+	// 10. Places within 2 km of a point.
+	if nearby, err := c.Nearby(ctx, &bk.NearbyRequest{
+		Latitude:  lat,
+		Longitude: lon,
+		Radius:    2,
+		Limit:     5,
+	}); err != nil {
+		handleErr("Nearby", err)
+	} else {
+		fmt.Printf("10. Nearby: %d place(s)", len(nearby.Places))
+		if len(nearby.Places) > 0 {
+			fmt.Printf(", closest: %s", nearby.Places[0].Name)
+		}
+		fmt.Println()
+	}
+
+	// 11. Geofence check: is the destination within 500 m of the current point?
+	if check, err := c.CheckNearby(ctx, &bk.CheckNearbyRequest{
+		CurrentLatitude:      lat,
+		CurrentLongitude:     lon,
+		DestinationLatitude:  lat + 0.001, // ~111 m north
+		DestinationLongitude: lon,
+		Radius:               500,
+	}); err != nil {
+		handleErr("CheckNearby", err)
+	} else if check.Data != nil {
+		fmt.Printf("11. CheckNearby: within radius, near %s\n", check.Data.Name)
+	} else {
+		fmt.Printf("11. CheckNearby: %s\n", check.Message)
 	}
 
 	// A client-side validation failure, caught before any HTTP call.
