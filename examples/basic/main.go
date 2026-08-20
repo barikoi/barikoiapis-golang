@@ -104,14 +104,14 @@ func main() {
 		fmt.Printf("6. OptimizeRoute: %.1f km optimized path\n", opt.Paths[0].Distance/1000)
 	}
 
-	// 7. Raw GPS points -> road network geometry.
+	// 7. Coordinate -> nearest point on the road network.
 	if snap, err := c.SnapToRoad(ctx, &bk.SnapToRoadRequest{
-		Points: "90.362548828125,23.94107556246209;90.35,23.96;90.34,23.98",
+		Point: "23.94107556246209,90.362548828125",
 	}); err != nil {
 		handleErr("SnapToRoad", err)
 	} else {
-		fmt.Printf("7. SnapToRoad: %d matched point(s), %.0f m\n",
-			len(snap.Geometry.Coordinates), snap.Distance)
+		fmt.Printf("7. SnapToRoad: snapped to [%.6f, %.6f], %.1f m away\n",
+			snap.Coordinates[0], snap.Coordinates[1], snap.Distance)
 	}
 
 	// --- Search ---

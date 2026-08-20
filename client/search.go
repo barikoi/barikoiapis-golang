@@ -96,20 +96,22 @@ type NearbyRequest struct {
 	Limit     int
 }
 
-// NearbyPlace is one nearby place.
+// NearbyPlace is one nearby place. Field tags match the live /v2 nearby
+// response: id arrives as a numeric string, type/sub_type/place_code are
+// snake_case (or lowercase) keys.
 type NearbyPlace struct {
-	ID               int64      `json:"id"`
+	ID               FlexString `json:"id"`
 	Name             string     `json:"name"`
 	DistanceInMeters FlexFloat  `json:"distance_in_meters"`
 	Longitude        FlexFloat  `json:"longitude"`
 	Latitude         FlexFloat  `json:"latitude"`
-	PType            string     `json:"pType"`
-	Address          string     `json:"Address"`
+	PType            string     `json:"type"`
+	Address          string     `json:"address"`
 	Area             string     `json:"area"`
 	City             string     `json:"city"`
-	PostCode         FlexString `json:"postCode"`
-	SubType          string     `json:"subType"`
-	UCode            string     `json:"uCode"`
+	PostCode         FlexString `json:"postcode"`
+	SubType          string     `json:"sub_type"`
+	PlaceCode        string     `json:"place_code"`
 }
 
 // NearbyResponse is the response of Nearby.

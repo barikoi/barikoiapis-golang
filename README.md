@@ -62,7 +62,7 @@ The API key is sent as the `api_key` query parameter on every request, GET and P
 | `RouteOverview` | `GET /v2/api/route/{coordinates}` | Basic route (distance, duration, geometry) between `lon,lat;lon,lat` points. |
 | `CalculateRoute` | `POST /v2/api/routing` | Detailed route with turn-by-turn maneuvers between two coordinates. |
 | `OptimizeRoute` | `POST /v2/api/route/optimized` | Optimized route through up to 50 waypoints (`source`, `destination`, `geo_points`). |
-| `SnapToRoad` | `GET /v2/api/routing/matching` | Snaps raw GPS points (`lon,lat;lon,lat`) to the road network (map matching). |
+| `SnapToRoad` | `GET /v2/api/routing/nearest` | Snaps a coordinate (`lat,lon`) to the nearest point on the road network. |
 | `SearchPlace` | `GET /api/v2/search-place` | Search places by query; returns place codes and a session ID. |
 | `PlaceDetails` | `GET /api/v2/places` | Address and coordinates for a place code, using the session ID from `SearchPlace`. |
 | `Nearby` | `GET /v2/api/search/nearby/{radius}/{limit}` | Places near a point; radius (km) and limit are path parameters. |
@@ -108,7 +108,7 @@ if errors.As(err, &valErr) {
 ## Validation rules
 
 - Latitude in `[-90, 90]`, longitude in `[-180, 180]` → `ErrInvalidLatitude` / `ErrInvalidLongitude`.
-- Required strings (`Q`, `PlaceCode`, `SessionID`, `Coordinates`, `Points`, `Source`, `Destination`) → `*ValidationError` naming the field.
+- Required strings (`Q`, `PlaceCode`, `SessionID`, `Coordinates`, `Point`, `Source`, `Destination`) → `*ValidationError` naming the field.
 - `Nearby`: radius in `[0.1, 100]` km, limit in `[1, 100]`.
 - `CheckNearby`: radius in `[10, 1000]` meters.
 
@@ -124,7 +124,7 @@ All 11 endpoints above were verified against the official API reference at <http
 - **`OptimizeRoute`** follows the documented request shape (`source`, `destination`, `profile`, `geo_points`), not a single coordinates string. The docs show `api_key` in the JSON body, so the SDK sends it both in the body and as the `api_key` query parameter (as on every request).
 - **`CalculateRoute`**: the docs' curl example uses `key=` in the query string, but the parameter table says `api_key`; the SDK sends `api_key` like every other endpoint. Verify with a live key if a 401 occurs.
 - **`RouteOverview`** leg `steps` have no documented schema; the SDK exposes them as raw `map[string]any`.
-- **`SnapToRoad`** maps to Route Match (`/v2/api/routing/matching`), which snaps a *series* of GPS points. Barikoi also offers a single-point nearest-road endpoint (`/v2/api/routing/nearest`, param `point`) not covered by this SDK's 11-method surface.
+- **`SnapToRoad`** maps to the nearest-road endpoint (`/v2/api/routing/nearest`, param `point`): it snaps a single coordinate to the closest road point. The live API rejects the undocumented map-matching endpoint (`/v2/api/routing/matching`) with 503.
 - Not yet exercised against a live API with a real key — response types are taken from the documented examples. If a field arrives in a different shape, `FlexFloat`/`FlexString` absorb number/string mismatches, but new fields may be missing from the structs. File an issue or add the field.
 
 ## Example

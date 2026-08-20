@@ -272,34 +272,31 @@ func (c *Client) OptimizeRoute(ctx context.Context, req *OptimizeRouteRequest) (
 	return &resp, nil
 }
 
-// SnapToRoadRequest holds raw GPS points to match to the road network.
-// Points is required and formatted as "lon,lat;lon,lat".
+// SnapToRoadRequest holds the point to snap to the nearest road.
+// Point is required and formatted as "lat,lon".
 type SnapToRoadRequest struct {
-	Points string
+	Point string
 }
 
-// SnapToRoadResponse is the response of SnapToRoad: the matched geometry as a
-// LineString and the total distance in meters.
+// SnapToRoadResponse is the response of SnapToRoad: the nearest road point
+// ([lon, lat]) and its distance from the input point in meters.
 type SnapToRoadResponse struct {
-	Geometry struct {
-		Coordinates [][]float64 `json:"coordinates"`
-		Type        string      `json:"type"`
-	} `json:"geometry"`
-	Distance float64 `json:"distance"`
-	Status   int     `json:"status"`
+	Coordinates []float64 `json:"coordinates"`
+	Distance    float64   `json:"distance"`
+	Type        string    `json:"type"`
 }
 
-// SnapToRoad snaps a series of raw GPS points to the most likely road paths
-// via GET /v2/api/routing/matching.
+// SnapToRoad finds the nearest point on the road network to a single
+// coordinate via GET /v2/api/routing/nearest.
 func (c *Client) SnapToRoad(ctx context.Context, req *SnapToRoadRequest) (*SnapToRoadResponse, error) {
-	if err := requireString("points", req.Points); err != nil {
+	if err := requireString("point", req.Point); err != nil {
 		return nil, err
 	}
 	q := url.Values{}
-	q.Set("points", req.Points)
+	q.Set("point", req.Point)
 
 	var resp SnapToRoadResponse
-	if err := c.doGet(ctx, "/v2/api/routing/matching", q, &resp); err != nil {
+	if err := c.doGet(ctx, "/v2/api/routing/nearest", q, &resp); err != nil {
 		return nil, err
 	}
 	return &resp, nil

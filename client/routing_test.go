@@ -289,20 +289,17 @@ func TestOptimizeRouteValidation(t *testing.T) {
 
 func TestSnapToRoadSuccess(t *testing.T) {
 	const respBody = `{
-		"geometry": {
-			"coordinates": [[90.384425, 23.726761], [90.384427, 23.726622]],
-			"type": "LineString"
-		},
+		"coordinates": [90.384425, 23.726761],
 		"distance": 15.5,
-		"status": 200
+		"type": "Point"
 	}`
-	const points = "90.38436119310136,23.7267599142696;90.38438265469962,23.726622279057658"
+	const point = "23.7267599142696,90.38436119310136"
 	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
-		if got, want := r.URL.Path, "/v2/api/routing/matching"; got != want {
+		if got, want := r.URL.Path, "/v2/api/routing/nearest"; got != want {
 			t.Errorf("path = %q, want %q", got, want)
 		}
-		if got := r.URL.Query().Get("points"); got != points {
-			t.Errorf("points = %q, want %q", got, points)
+		if got := r.URL.Query().Get("point"); got != point {
+			t.Errorf("point = %q, want %q", got, point)
 		}
 		if got := r.URL.Query().Get("api_key"); got != "test-key" {
 			t.Errorf("api_key = %q, want %q", got, "test-key")
@@ -310,18 +307,18 @@ func TestSnapToRoadSuccess(t *testing.T) {
 		writeJSON(t, w, http.StatusOK, respBody)
 	})
 
-	resp, err := c.SnapToRoad(context.Background(), &SnapToRoadRequest{Points: points})
+	resp, err := c.SnapToRoad(context.Background(), &SnapToRoadRequest{Point: point})
 	if err != nil {
 		t.Fatalf("SnapToRoad: %v", err)
 	}
 	if resp.Distance != 15.5 {
 		t.Errorf("Distance = %v, want 15.5", resp.Distance)
 	}
-	if len(resp.Geometry.Coordinates) != 2 || resp.Geometry.Coordinates[0][0] != 90.384425 {
-		t.Errorf("coordinates = %+v", resp.Geometry.Coordinates)
+	if len(resp.Coordinates) != 2 || resp.Coordinates[0] != 90.384425 {
+		t.Errorf("coordinates = %+v", resp.Coordinates)
 	}
-	if resp.Geometry.Type != "LineString" {
-		t.Errorf("type = %q, want LineString", resp.Geometry.Type)
+	if resp.Type != "Point" {
+		t.Errorf("type = %q, want Point", resp.Type)
 	}
 }
 
@@ -332,7 +329,7 @@ func TestSnapToRoadValidation(t *testing.T) {
 	}
 	_, err = c.SnapToRoad(context.Background(), &SnapToRoadRequest{})
 	var ve *ValidationError
-	if !errors.As(err, &ve) || ve.Field != "points" {
-		t.Fatalf("got %v, want *ValidationError{Field: points}", err)
+	if !errors.As(err, &ve) || ve.Field != "point" {
+		t.Fatalf("got %v, want *ValidationError{Field: point}", err)
 	}
 }

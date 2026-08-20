@@ -116,18 +116,18 @@ func TestPlaceDetailsValidation(t *testing.T) {
 func TestNearbySuccess(t *testing.T) {
 	const respBody = `{
 		"places": [{
-			"id": 4,
+			"id": "6488",
 			"name": "Uttara sector 12 Park",
 			"distance_in_meters": 0.00045241879869987946,
 			"longitude": 90.383051633835,
 			"latitude": 23.871887192063,
-			"pType": "Recreation",
-			"Address": "Road 11, Sector 12",
+			"type": "Recreation",
+			"address": "Road 11, Sector 12",
 			"area": "Uttara",
 			"city": "Dhaka",
-			"postCode": 1230,
-			"subType": "PARK",
-			"uCode": "OYFR1074"
+			"postcode": "1230",
+			"sub_type": "PARK",
+			"place_code": "OYFR1074"
 		}],
 		"status": 200
 	}`
@@ -162,6 +162,18 @@ func TestNearbySuccess(t *testing.T) {
 	}
 	if resp.Places[0].PostCode != "1230" {
 		t.Errorf("postCode = %q, want \"1230\"", resp.Places[0].PostCode)
+	}
+	if resp.Places[0].ID != "6488" {
+		t.Errorf("id = %q, want \"6488\" (string)", resp.Places[0].ID)
+	}
+	if resp.Places[0].PType != "Recreation" {
+		t.Errorf("type = %q, want Recreation", resp.Places[0].PType)
+	}
+	if resp.Places[0].SubType != "PARK" {
+		t.Errorf("sub_type = %q, want PARK", resp.Places[0].SubType)
+	}
+	if resp.Places[0].PlaceCode != "OYFR1074" {
+		t.Errorf("place_code = %q, want OYFR1074", resp.Places[0].PlaceCode)
 	}
 	if resp.Places[0].DistanceInMeters != 0.00045241879869987946 {
 		t.Errorf("distance_in_meters = %v", resp.Places[0].DistanceInMeters)
