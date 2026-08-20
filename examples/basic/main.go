@@ -15,7 +15,7 @@ import (
 	"os"
 	"time"
 
-	bk "github.com/barikoi/barikoiapis/go/client"
+	bk "github.com/barikoi/barikoiapis-golang/client"
 )
 
 // Common coordinates for the examples below: Barikoi HQ area, Dhaka.

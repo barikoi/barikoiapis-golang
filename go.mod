@@ -1,3 +1,3 @@
-module github.com/barikoi/barikoiapis/go
+module github.com/barikoi/barikoiapis-golang
 
 go 1.22
