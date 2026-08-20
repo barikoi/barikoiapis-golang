@@ -5,11 +5,11 @@ Native Go client for the [Barikoi Location APIs](https://barikoi.xyz) — geocod
 ## Installation
 
 ```bash
-go get github.com/barikoi/barikoiapis/go
+go get github.com/barikoi/barikoiapis-golang
 ```
 
 ```go
-import bk "github.com/barikoi/barikoiapis/go/client"
+import bk "github.com/barikoi/barikoiapis-golang/client"
 ```
 
 Get an API key at [developer.barikoi.com](https://developer.barikoi.com/).
@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"log"
 
-	bk "github.com/barikoi/barikoiapis/go/client"
+	bk "github.com/barikoi/barikoiapis-golang/client"
 )
 
 func main() {
