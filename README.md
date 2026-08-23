@@ -2,6 +2,8 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/barikoi/barikoiapis-golang.svg)](https://pkg.go.dev/github.com/barikoi/barikoiapis-golang)
 [![Release](https://img.shields.io/github/release/barikoi/barikoiapis-golang.svg?style=flat-square)](https://github.com/barikoi/barikoiapis-golang/releases/latest)
+[![CI](https://github.com/barikoi/barikoiapis-golang/actions/workflows/ci.yml/badge.svg)](https://github.com/barikoi/barikoiapis-golang/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/barikoi/barikoiapis-golang/badge.svg)](https://codecov.io/gh/barikoi/barikoiapis-golang)
 [![Go Report Card](https://goreportcard.com/badge/github.com/barikoi/barikoiapis-golang?style=flat-square)](https://goreportcard.com/report/github.com/barikoi/barikoiapis-golang)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/barikoi/barikoiapis-golang?style=flat-square)](https://go.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
