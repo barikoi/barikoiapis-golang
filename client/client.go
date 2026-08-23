@@ -180,7 +180,7 @@ func (c *Client) do(ctx context.Context, call func(ctx context.Context) (*http.R
 	if err != nil {
 		return wrapTransportError(ctx, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {

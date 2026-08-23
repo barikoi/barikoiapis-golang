@@ -28,7 +28,7 @@ func loadDotEnv(t *testing.T) {
 	if err != nil {
 		return // no .env, fine
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
@@ -42,7 +42,7 @@ func loadDotEnv(t *testing.T) {
 		k, v = strings.TrimSpace(k), strings.TrimSpace(v)
 		v = strings.Trim(v, `"'`)
 		if os.Getenv(k) == "" {
-			os.Setenv(k, v)
+			_ = os.Setenv(k, v)
 		}
 	}
 }
