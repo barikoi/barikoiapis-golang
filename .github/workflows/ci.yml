@@ -9,6 +9,8 @@ jobs:
   check:
     name: Lint & Test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
@@ -16,11 +18,25 @@ jobs:
           go-version: "1.22"
       - run: make lint
       - run: make cover
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
-          files: coverage.out
-        continue-on-error: true
+      - name: Publish coverage badge
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          pct=$(go tool cover -func=coverage.out | awk '/^total:/ {sub(/%$/, "", $3); print $3}')
+          pct_int=${pct%%.*}
+          if   [ "$pct_int" -ge 90 ]; then color=brightgreen
+          elif [ "$pct_int" -ge 80 ]; then color=green
+          elif [ "$pct_int" -ge 70 ]; then color=yellow
+          elif [ "$pct_int" -ge 60 ]; then color=orange
+          else                          color=red
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan badges
+          git rm -rf -q .
+          printf '{"schemaVersion":1,"label":"coverage","message":"%s%%","color":"%s"}\n' "$pct" "$color" > coverage.json
+          git add coverage.json
+          git commit -q -m "coverage: ${pct}%"
+          git push -fq origin HEAD:badges
 
   codeql:
     name: CodeQL
