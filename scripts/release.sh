@@ -54,9 +54,9 @@ grep -q '^## \[Unreleased\]' CHANGELOG.md || {
 echo "==> v$CURRENT -> v$NEXT ($BUMP)"
 make check
 
-awk -v next="$NEXT" -v date="$(date +%F)" '
+awk -v ver="$NEXT" -v date="$(date +%F)" '
   !done && $0 == "## [Unreleased]" {
-    print; print ""; print "## [" next "] - " date; done = 1; next
+    print; print ""; print "## [" ver "] - " date; done = 1; next
   }
   { print }
 ' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
