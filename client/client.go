@@ -1,7 +1,11 @@
+// Package client is the hand-written layer of the Barikoi Go SDK. It wraps
+// the generated API client (github.com/barikoi/barikoiapis-golang/gen) with
+// simplified request types, client-side validation, API key injection,
+// timeouts, and the SDK's error types — the equivalent of the TypeScript
+// SDK's src/lib/client.ts.
 package client
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,6 +18,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/barikoi/barikoiapis-golang/gen"
 )
 
 // Defaults used by NewClient.
@@ -25,36 +31,49 @@ const (
 // Client talks to the Barikoi Location APIs. Create one with NewClient; it is
 // safe for concurrent use. All API methods hang off *Client.
 type Client struct {
-	mu         sync.RWMutex
-	apiKey     string
-	baseURL    *url.URL
+	mu      sync.RWMutex
+	apiKey  string
+	baseURL *url.URL
+	gen     *gen.Client
+	// httpClient is retained for test introspection; gen issues requests
+	// through it.
 	httpClient *http.Client
+	timeout    time.Duration
 }
 
 type config struct {
-	baseURL    string
-	timeout    time.Duration
-	httpClient *http.Client
+	baseURL       string
+	timeout       time.Duration
+	httpClient    *http.Client
+	allowInsecure bool
 }
 
 // Option configures a Client in NewClient.
 type Option func(*config)
 
-// WithBaseURL sets the API base URL (default "https://barikoi.xyz").
+// WithBaseURL sets the API base URL (default "https://barikoi.xyz"). The URL
+// must use https; http is refused to keep the API key out of cleartext
+// traffic. Use WithAllowInsecure to permit http for local development.
 func WithBaseURL(rawURL string) Option {
 	return func(c *config) { c.baseURL = rawURL }
 }
 
-// WithTimeout sets the per-request timeout (default 30s). It overrides the
-// timeout of an http.Client supplied via WithHTTPClient.
+// WithTimeout sets the per-request timeout (default 30s).
 func WithTimeout(d time.Duration) Option {
 	return func(c *config) { c.timeout = d }
 }
 
-// WithHTTPClient sets a custom *http.Client for outgoing requests. A custom
-// client keeps its own Timeout unless WithTimeout is also given.
+// WithHTTPClient sets a custom *http.Client for outgoing requests. The
+// per-request timeout from WithTimeout (or the 30s default) still applies on
+// top of the client's own Timeout, whichever is shorter.
 func WithHTTPClient(hc *http.Client) Option {
 	return func(c *config) { c.httpClient = hc }
+}
+
+// WithAllowInsecure permits http:// base URLs, which the client refuses by
+// default. Use only for local development and testing.
+func WithAllowInsecure() Option {
+	return func(c *config) { c.allowInsecure = true }
 }
 
 // NewClient returns a Client that authenticates with the given API key,
@@ -69,17 +88,38 @@ func NewClient(apiKey string, opts ...Option) (*Client, error) {
 		opt(&cfg)
 	}
 	if cfg.httpClient == nil {
-		cfg.httpClient = &http.Client{Timeout: DefaultTimeout}
+		cfg.httpClient = &http.Client{}
 	}
-	if cfg.timeout != 0 {
-		cfg.httpClient.Timeout = cfg.timeout
+	if cfg.timeout <= 0 {
+		cfg.timeout = DefaultTimeout
 	}
-	base, err := url.Parse(cfg.baseURL)
-	if err != nil || base.Scheme == "" || base.Host == "" {
-		return nil, fmt.Errorf("barikoi: invalid base URL %q", cfg.baseURL)
+	base, err := parseBaseURL(cfg.baseURL, cfg.allowInsecure)
+	if err != nil {
+		return nil, err
 	}
-	base.Path = strings.TrimSuffix(base.Path, "/")
-	return &Client{apiKey: apiKey, baseURL: base, httpClient: cfg.httpClient}, nil
+	gc, err := gen.NewClient(base.String(), gen.WithHTTPClient(cfg.httpClient))
+	if err != nil {
+		return nil, fmt.Errorf("barikoi: creating API client: %w", err)
+	}
+	return &Client{apiKey: apiKey, baseURL: base, gen: gc, httpClient: cfg.httpClient, timeout: cfg.timeout}, nil
+}
+
+// parseBaseURL validates the base URL the way the TypeScript SDK does: it
+// must be an absolute http(s) URL with no fragment or query, https unless
+// insecure is allowed, and it is normalized without a trailing slash.
+func parseBaseURL(rawURL string, allowInsecure bool) (*url.URL, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Scheme == "" || u.Host == "" || u.Fragment != "" || u.RawQuery != "" {
+		return nil, fmt.Errorf("barikoi: invalid base URL %q", rawURL)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return nil, fmt.Errorf("barikoi: invalid base URL %q: scheme must be http or https", rawURL)
+	}
+	if u.Scheme == "http" && !allowInsecure {
+		return nil, fmt.Errorf("barikoi: base URL must use https:// (got http://); pass WithAllowInsecure for local development")
+	}
+	u.Path = strings.TrimSuffix(u.Path, "/")
+	return u, nil
 }
 
 // SetAPIKey replaces the API key used for subsequent requests.
@@ -96,51 +136,47 @@ func (c *Client) GetAPIKey() string {
 	return c.apiKey
 }
 
-// doGet performs a GET request and decodes the JSON response into out.
-func (c *Client) doGet(ctx context.Context, path string, query url.Values, out any) error {
-	return c.do(ctx, http.MethodGet, path, query, nil, "", out)
+// SetTimeout replaces the per-request timeout for subsequent requests.
+func (c *Client) SetTimeout(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.timeout = d
 }
 
-// doPostJSON sends body as a JSON POST and decodes the response into out.
-func (c *Client) doPostJSON(ctx context.Context, path string, query url.Values, body, out any) error {
-	data, err := json.Marshal(body)
-	if err != nil {
-		return fmt.Errorf("barikoi: encoding request body: %w", err)
-	}
-	return c.do(ctx, http.MethodPost, path, query, data, "application/json", out)
+// GetTimeout returns the current per-request timeout.
+func (c *Client) GetTimeout() time.Duration {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.timeout
 }
 
-// doPostForm sends form as an application/x-www-form-urlencoded POST and
-// decodes the response into out.
-func (c *Client) doPostForm(ctx context.Context, path string, query, form url.Values, out any) error {
-	return c.do(ctx, http.MethodPost, path, query, []byte(form.Encode()), "application/x-www-form-urlencoded", out)
+// apiKeyParam returns the API key for the request being built.
+func (c *Client) apiKeyParam() gen.ApiKey {
+	return gen.ApiKey(c.GetAPIKey())
 }
 
-// do performs an HTTP request against the API, adding the api_key query
-// parameter, and decodes the JSON response into out.
-func (c *Client) do(ctx context.Context, method, path string, query url.Values, body []byte, contentType string, out any) error {
-	u := *c.baseURL
-	u.Path += path
-	if query == nil {
-		query = url.Values{}
+// withAPIKeyQuery returns a request editor that adds the api_key query
+// parameter, for operations whose spec parameters omit it (only optimizeRoute
+// today: it carries the key in its request body instead).
+func (c *Client) withAPIKeyQuery() gen.RequestEditorFn {
+	return func(ctx context.Context, req *http.Request) error {
+		q := req.URL.Query()
+		q.Set("api_key", c.GetAPIKey())
+		req.URL.RawQuery = q.Encode()
+		return nil
 	}
-	query.Set("api_key", c.GetAPIKey())
-	u.RawQuery = query.Encode()
+}
 
-	var reader io.Reader
-	if body != nil {
-		reader = bytes.NewReader(body)
+// do runs a generated API call with the per-request timeout applied, then
+// decodes the JSON response into out. Non-2xx responses become *BarikoiError,
+// cancellations and timeouts become *TimeoutError.
+func (c *Client) do(ctx context.Context, call func(ctx context.Context) (*http.Response, error), out any) error {
+	if timeout := c.GetTimeout(); timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
 	}
-	req, err := http.NewRequestWithContext(ctx, method, u.String(), reader)
-	if err != nil {
-		return err
-	}
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.httpClient.Do(req)
+	resp, err := call(ctx)
 	if err != nil {
 		return wrapTransportError(ctx, err)
 	}
@@ -157,7 +193,7 @@ func (c *Client) do(ctx context.Context, method, path string, query url.Values, 
 		return nil
 	}
 	if err := json.Unmarshal(data, out); err != nil {
-		return fmt.Errorf("barikoi: decoding response from %s: %w", path, err)
+		return fmt.Errorf("barikoi: decoding response: %w", err)
 	}
 	return nil
 }
@@ -208,36 +244,6 @@ func codeForStatus(statusCode int) string {
 		return "server_error"
 	default:
 		return "unknown_error"
-	}
-}
-
-// validateCoords checks latitude/longitude bounds before any HTTP call.
-func validateCoords(lat, lon float64) error {
-	if lat < -90 || lat > 90 {
-		return ErrInvalidLatitude
-	}
-	if lon < -180 || lon > 180 {
-		return ErrInvalidLongitude
-	}
-	return nil
-}
-
-// requireString returns a *ValidationError if value is blank.
-func requireString(field, value string) error {
-	if strings.TrimSpace(value) == "" {
-		return &ValidationError{Field: field, Message: "is required"}
-	}
-	return nil
-}
-
-func formatFloat(f float64) string {
-	return strconv.FormatFloat(f, 'f', -1, 64)
-}
-
-// setBoolParam sets name to "true" only when v is true.
-func setBoolParam(q url.Values, name string, v bool) {
-	if v {
-		q.Set(name, "true")
 	}
 }
 

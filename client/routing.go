@@ -2,7 +2,10 @@ package client
 
 import (
 	"context"
-	"net/url"
+	"encoding/json"
+	"net/http"
+
+	"github.com/barikoi/barikoiapis-golang/gen"
 )
 
 // Coordinate is a latitude/longitude pair used in routing requests.
@@ -12,9 +15,9 @@ type Coordinate struct {
 }
 
 // RouteOverviewRequest describes a basic route request. Coordinates is
-// required and formatted as "lon,lat;lon,lat". Geometries is one of
-// "polyline" (default), "polyline6", or "geojson". Profile is "car"
-// (default) or "foot".
+// required and formatted as "lon,lat;lon,lat" (at least two pairs).
+// Geometries is one of "polyline" (default), "polyline6", or "geojson".
+// Profile is "car" (default) or "foot".
 type RouteOverviewRequest struct {
 	Coordinates string
 	Geometries  string
@@ -59,27 +62,43 @@ type RouteOverviewResponse struct {
 // RouteOverview returns the basic route between coordinates via
 // GET /v2/api/route/{coordinates}.
 func (c *Client) RouteOverview(ctx context.Context, req *RouteOverviewRequest) (*RouteOverviewResponse, error) {
-	if err := requireString("coordinates", req.Coordinates); err != nil {
+	if err := validateCoordinatesString(req.Coordinates); err != nil {
 		return nil, err
 	}
-	q := url.Values{}
-	if req.Geometries != "" {
-		q.Set("geometries", req.Geometries)
+	geometries := req.Geometries
+	if geometries == "" {
+		geometries = "polyline" // default, matching the TypeScript SDK
 	}
-	if req.Profile != "" {
-		q.Set("profile", req.Profile)
+	if err := validateEnum("geometries", geometries, "polyline", "polyline6", "geojson"); err != nil {
+		return nil, err
+	}
+	profile := req.Profile
+	if profile == "" {
+		profile = "car" // default, matching the TypeScript SDK
+	}
+	if err := validateEnum("profile", profile, "car", "foot"); err != nil {
+		return nil, err
+	}
+	params := &gen.RouteOverviewParams{
+		ApiKey:     c.apiKeyParam(),
+		Geometries: (*gen.RouteOverviewParamsGeometries)(&geometries),
+		Profile:    (*gen.RouteOverviewParamsProfile)(&profile),
 	}
 
 	var resp RouteOverviewResponse
-	if err := c.doGet(ctx, "/v2/api/route/"+req.Coordinates, q, &resp); err != nil {
+	err := c.do(ctx, func(ctx context.Context) (*http.Response, error) {
+		return c.gen.RouteOverview(ctx, gen.Coordinates(req.Coordinates), params)
+	}, &resp)
+	if err != nil {
 		return nil, err
 	}
 	return &resp, nil
 }
 
 // CalculateRouteRequest describes a detailed routing request with
-// turn-by-turn maneuvers. Type is the routing algorithm (e.g. "vh", required
-// by the API). Profile is "car" (default), "bike", or "motorcycle".
+// turn-by-turn instructions. Type is the routing engine and defaults to "gh"
+// (the only value the API documents); Profile is "car" (default), "bike", or
+// "motorcycle" and is sent only when set.
 type CalculateRouteRequest struct {
 	Start       Coordinate
 	Destination Coordinate
@@ -87,106 +106,121 @@ type CalculateRouteRequest struct {
 	Profile     string
 }
 
-// RouteManeuver is a single turn-by-turn instruction.
-type RouteManeuver struct {
-	Type                                int      `json:"type"`
-	Instruction                         string   `json:"instruction"`
-	VerbalSuccinctTransitionInstruction string   `json:"verbal_succinct_transition_instruction"`
-	VerbalPreTransitionInstruction      string   `json:"verbal_pre_transition_instruction"`
-	VerbalPostTransitionInstruction     string   `json:"verbal_post_transition_instruction"`
-	Time                                float64  `json:"time"`
-	Length                              float64  `json:"length"`
-	Cost                                float64  `json:"cost"`
-	BeginShapeIndex                     int      `json:"begin_shape_index"`
-	EndShapeIndex                       int      `json:"end_shape_index"`
-	VerbalMultiCue                      bool     `json:"verbal_multi_cue"`
-	TravelMode                          string   `json:"travel_mode"`
-	TravelType                          string   `json:"travel_type"`
-	StreetNames                         []string `json:"street_names"`
+// RouteInstruction is one navigation instruction of a route path
+// (GraphHopper format).
+type RouteInstruction struct {
+	Distance   float64 `json:"distance"`
+	Heading    float64 `json:"heading"`
+	Sign       int     `json:"sign"`
+	Interval   []int   `json:"interval"`
+	Text       string  `json:"text"`
+	Time       float64 `json:"time"`        // milliseconds
+	StreetName string  `json:"street_name"` // "" when the API reports null
 }
 
-// RouteTripLocation is a snapped start/destination point of a trip.
-type RouteTripLocation struct {
-	Type          string  `json:"type"`
-	Lat           float64 `json:"lat"`
-	Lon           float64 `json:"lon"`
-	OriginalIndex int     `json:"original_index"`
+// GeoJSONLineString is the GeoJSON geometry returned for route points when
+// points_encoded is false.
+type GeoJSONLineString struct {
+	Type        string      `json:"type"`        // "LineString"
+	Coordinates [][]float64 `json:"coordinates"` // [longitude, latitude] pairs
 }
 
-// RouteTripSummary summarizes a trip or leg: time in seconds, length in the
-// units reported by the API (miles by default).
-type RouteTripSummary struct {
-	HasTimeRestrictions bool    `json:"has_time_restrictions"`
-	HasToll             bool    `json:"has_toll"`
-	HasHighway          bool    `json:"has_highway"`
-	HasFerry            bool    `json:"has_ferry"`
-	MinLat              float64 `json:"min_lat"`
-	MinLon              float64 `json:"min_lon"`
-	MaxLat              float64 `json:"max_lat"`
-	MaxLon              float64 `json:"max_lon"`
-	Time                float64 `json:"time"`
-	Length              float64 `json:"length"`
-	Cost                float64 `json:"cost"`
+// RouteGeometry holds a route geometry in either of the two forms the API
+// returns: an encoded polyline string when points_encoded is true, or a
+// GeoJSON LineString object when it is false. Exactly one of Polyline and
+// GeoJSON is set.
+type RouteGeometry struct {
+	Polyline string
+	GeoJSON  *GeoJSONLineString
 }
 
-// RouteTripLeg is one leg of a trip with its maneuvers.
-type RouteTripLeg struct {
-	Maneuvers []RouteManeuver  `json:"maneuvers"`
-	Summary   RouteTripSummary `json:"summary"`
-	Shape     string           `json:"shape"` // encoded polyline
+func (g *RouteGeometry) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		g.Polyline = s
+		g.GeoJSON = nil
+		return nil
+	}
+	return json.Unmarshal(data, &g.GeoJSON)
 }
 
-// RouteTrip is the full trip returned by CalculateRoute.
-type RouteTrip struct {
-	Locations     []RouteTripLocation `json:"locations"`
-	Legs          []RouteTripLeg      `json:"legs"`
-	Summary       RouteTripSummary    `json:"summary"`
-	StatusMessage string              `json:"status_message"`
-	Status        int                 `json:"status"`
-	Units         string              `json:"units"`
-	Language      string              `json:"language"`
+// RoutePath is one route path (GraphHopper format): distance in meters, time
+// in milliseconds.
+type RoutePath struct {
+	Distance         float64            `json:"distance"` // meters
+	Weight           float64            `json:"weight"`
+	Time             float64            `json:"time"` // milliseconds
+	Transfers        int                `json:"transfers"`
+	PointsEncoded    bool               `json:"points_encoded"`
+	BBox             []float64          `json:"bbox"` // [minLon, minLat, maxLon, maxLat]
+	Points           RouteGeometry      `json:"points"`
+	Instructions     []RouteInstruction `json:"instructions"`
+	Legs             []map[string]any   `json:"legs"`
+	Details          json.RawMessage    `json:"details"` // object or array depending on endpoint
+	Ascend           float64            `json:"ascend"`
+	Descend          float64            `json:"descend"`
+	SnappedWaypoints RouteGeometry      `json:"snapped_waypoints"`
 }
 
-// CalculateRouteResponse is the response of CalculateRoute.
-type CalculateRouteResponse struct {
-	Trip RouteTrip `json:"trip"`
-	ID   string    `json:"id"`
+// RoutingResponse is the GraphHopper-format response shared by
+// CalculateRoute and OptimizeRoute.
+type RoutingResponse struct {
+	Hints struct {
+		VisitedNodesSum     float64 `json:"visited_nodes.sum"`
+		VisitedNodesAverage float64 `json:"visited_nodes.average"`
+	} `json:"hints"`
+	Info struct {
+		Copyrights        []string `json:"copyrights"`
+		Took              float64  `json:"took"`
+		RoadDataTimestamp string   `json:"road_data_timestamp"`
+	} `json:"info"`
+	Paths []RoutePath `json:"paths"`
 }
 
-// CalculateRoute returns a detailed route with turn-by-turn maneuvers via
+// CalculateRoute returns a detailed route with turn-by-turn instructions via
 // POST /v2/api/routing.
-func (c *Client) CalculateRoute(ctx context.Context, req *CalculateRouteRequest) (*CalculateRouteResponse, error) {
+func (c *Client) CalculateRoute(ctx context.Context, req *CalculateRouteRequest) (*RoutingResponse, error) {
 	if err := validateCoords(req.Start.Latitude, req.Start.Longitude); err != nil {
 		return nil, err
 	}
 	if err := validateCoords(req.Destination.Latitude, req.Destination.Longitude); err != nil {
 		return nil, err
 	}
-	q := url.Values{}
-	if req.Type != "" {
-		q.Set("type", req.Type)
+	routeType := req.Type
+	if routeType == "" {
+		routeType = "gh" // default and only documented value
+	}
+	if err := validateEnum("type", routeType, "gh"); err != nil {
+		return nil, err
+	}
+	params := gen.CalculateRouteParams{
+		ApiKey: c.apiKeyParam(),
+		Type:   gen.CalculateRouteParamsType(routeType),
 	}
 	if req.Profile != "" {
-		q.Set("profile", req.Profile)
+		if err := validateEnum("profile", req.Profile, "car", "bike", "motorcycle"); err != nil {
+			return nil, err
+		}
+		params.Profile = (*gen.CalculateRouteParamsProfile)(&req.Profile)
 	}
-	body := struct {
-		Data struct {
-			Start       Coordinate `json:"start"`
-			Destination Coordinate `json:"destination"`
-		} `json:"data"`
-	}{}
-	body.Data.Start = req.Start
-	body.Data.Destination = req.Destination
+	body := gen.CalculateRouteJSONRequestBody{}
+	body.Data.Start.Latitude = req.Start.Latitude
+	body.Data.Start.Longitude = req.Start.Longitude
+	body.Data.Destination.Latitude = req.Destination.Latitude
+	body.Data.Destination.Longitude = req.Destination.Longitude
 
-	var resp CalculateRouteResponse
-	if err := c.doPostJSON(ctx, "/v2/api/routing", q, &body, &resp); err != nil {
+	var resp RoutingResponse
+	err := c.do(ctx, func(ctx context.Context) (*http.Response, error) {
+		return c.gen.CalculateRoute(ctx, &params, body)
+	}, &resp)
+	if err != nil {
 		return nil, err
 	}
 	return &resp, nil
 }
 
 // OptimizeRoutePoint is a waypoint with its sort ID. Waypoints are visited in
-// ascending ID order; up to 50 are allowed.
+// ascending ID order; between 1 and 50 are allowed.
 type OptimizeRoutePoint struct {
 	ID    int    `json:"id"`
 	Point string `json:"point"` // "lat,lon"
@@ -194,7 +228,7 @@ type OptimizeRoutePoint struct {
 
 // OptimizeRouteRequest describes a route optimization from Source to
 // Destination through GeoPoints, each point formatted as "lat,lon".
-// Profile is "car" (default), "bike", or "motorcycle".
+// Profile is "car" (default), "bike", "foot", or "motorcycle".
 type OptimizeRouteRequest struct {
 	Source      string
 	Destination string
@@ -202,71 +236,58 @@ type OptimizeRouteRequest struct {
 	GeoPoints   []OptimizeRoutePoint
 }
 
-// OptimizedPathInstruction is one navigation instruction of an optimized path.
-type OptimizedPathInstruction struct {
-	Distance   float64 `json:"distance"`
-	Sign       int     `json:"sign"`
-	Interval   []int   `json:"interval"`
-	Text       string  `json:"text"`
-	Time       float64 `json:"time"`
-	StreetName *string `json:"street_name"`
-}
-
-// OptimizedPath is one optimized path (GraphHopper-style).
-type OptimizedPath struct {
-	Distance         float64                    `json:"distance"` // meters
-	Weight           float64                    `json:"weight"`
-	Time             float64                    `json:"time"` // milliseconds
-	Transfers        int                        `json:"transfers"`
-	PointsEncoded    bool                       `json:"points_encoded"`
-	BBox             []float64                  `json:"bbox"`
-	Points           string                     `json:"points"` // encoded polyline
-	Instructions     []OptimizedPathInstruction `json:"instructions"`
-	Ascend           float64                    `json:"ascend"`
-	Descend          float64                    `json:"descend"`
-	SnappedWaypoints string                     `json:"snapped_waypoints"`
-}
-
-// OptimizeRouteResponse is the response of OptimizeRoute.
-type OptimizeRouteResponse struct {
-	Hints struct {
-		VisitedNodesSum     int     `json:"visited_nodes.sum"`
-		VisitedNodesAverage float64 `json:"visited_nodes.average"`
-	} `json:"hints"`
-	Info struct {
-		Copyrights []string `json:"copyrights"`
-		Took       float64  `json:"took"`
-	} `json:"info"`
-	Paths []OptimizedPath `json:"paths"`
-}
-
-// OptimizeRoute optimizes a route through up to 50 waypoints via
+// OptimizeRoute optimizes a route through 1 to 50 waypoints via
 // POST /v2/api/route/optimized. The API key is sent both as the api_key
 // query parameter (as on every request) and in the JSON body, as the
 // endpoint's documentation shows it in both places.
-func (c *Client) OptimizeRoute(ctx context.Context, req *OptimizeRouteRequest) (*OptimizeRouteResponse, error) {
-	if err := requireString("source", req.Source); err != nil {
+func (c *Client) OptimizeRoute(ctx context.Context, req *OptimizeRouteRequest) (*RoutingResponse, error) {
+	if err := validatePointString("source", req.Source); err != nil {
 		return nil, err
 	}
-	if err := requireString("destination", req.Destination); err != nil {
+	if err := validatePointString("destination", req.Destination); err != nil {
 		return nil, err
 	}
-	body := struct {
-		APIKey      string               `json:"api_key"`
-		Source      string               `json:"source"`
-		Destination string               `json:"destination"`
-		Profile     string               `json:"profile,omitempty"`
-		GeoPoints   []OptimizeRoutePoint `json:"geo_points,omitempty"`
-	}{
-		APIKey:      c.GetAPIKey(),
+	if len(req.GeoPoints) < 1 || len(req.GeoPoints) > 50 {
+		return nil, &ValidationError{Field: "geo_points", Message: "must contain between 1 and 50 points"}
+	}
+	for _, gp := range req.GeoPoints {
+		if err := validatePointString("geo_points", gp.Point); err != nil {
+			return nil, err
+		}
+	}
+	profile := req.Profile
+	if profile == "" {
+		profile = "car" // default, matching the OpenAPI spec
+	}
+	if err := validateEnum("profile", profile, "car", "bike", "foot", "motorcycle"); err != nil {
+		return nil, err
+	}
+	body := gen.OptimizeRouteJSONRequestBody{
+		ApiKey:      c.GetAPIKey(),
 		Source:      req.Source,
 		Destination: req.Destination,
-		Profile:     req.Profile,
-		GeoPoints:   req.GeoPoints,
+		Profile:     (*gen.RouteOptimizationBodyProfile)(&profile),
 	}
+	// The spec declares geo_points as an inline array of {id, point}; the
+	// anonymous struct below is tag-identical to the generated field's type.
+	geoPoints := make([]struct {
+		Id    int    `json:"id"`
+		Point string `json:"point"`
+	}, len(req.GeoPoints))
+	for i, gp := range req.GeoPoints {
+		geoPoints[i].Id = gp.ID
+		geoPoints[i].Point = gp.Point
+	}
+	body.GeoPoints = geoPoints
 
-	var resp OptimizeRouteResponse
-	if err := c.doPostJSON(ctx, "/v2/api/route/optimized", nil, &body, &resp); err != nil {
+	var resp RoutingResponse
+	err := c.do(ctx, func(ctx context.Context) (*http.Response, error) {
+		// The spec declares optimizeRoute's api_key only in the request body;
+		// the TypeScript SDK's generator injects the global apiKey security
+		// scheme as a query parameter on every operation, so do the same here.
+		return c.gen.OptimizeRoute(ctx, body, c.withAPIKeyQuery())
+	}, &resp)
+	if err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -289,14 +310,14 @@ type SnapToRoadResponse struct {
 // SnapToRoad finds the nearest point on the road network to a single
 // coordinate via GET /v2/api/routing/nearest.
 func (c *Client) SnapToRoad(ctx context.Context, req *SnapToRoadRequest) (*SnapToRoadResponse, error) {
-	if err := requireString("point", req.Point); err != nil {
+	if err := validatePointString("point", req.Point); err != nil {
 		return nil, err
 	}
-	q := url.Values{}
-	q.Set("point", req.Point)
+	params := &gen.SnapToRoadParams{ApiKey: c.apiKeyParam(), Point: gen.Point(req.Point)}
 
 	var resp SnapToRoadResponse
-	if err := c.doGet(ctx, "/v2/api/routing/nearest", q, &resp); err != nil {
+	err := c.do(ctx, func(ctx context.Context) (*http.Response, error) { return c.gen.SnapToRoad(ctx, params) }, &resp)
+	if err != nil {
 		return nil, err
 	}
 	return &resp, nil

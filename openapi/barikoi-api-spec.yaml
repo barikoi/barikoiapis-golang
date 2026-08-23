@@ -1,0 +1,1447 @@
+openapi: 3.0.0
+info:
+  title: Barikoi Location API
+  version: 2.0.0
+  description: >-
+    # Introduction
+
+
+    Welcome to Barikoi API. Thank you for checking a Bangladeshi location data
+    provider API. Our API helps you to find address, geocode and reverse geocode
+    place and city corporation information in Dhaka in our local context.
+
+
+    ### Overview
+
+
+    The currently listed places API's are for autocomplete, post office
+    autocomplete, geocoding, reverse geocoding, nearby, distance & rupantor
+    geocoder. And City Corporation API's are Ward by Geolocation, Zone by
+    Geolocation, Ward and Zone by Geolocation, City Corporation by Geolocation
+    services.
+  termsOfService: https://www.barikoi.com/data-privacy
+  contact:
+    name: API Support
+    email: hello@barikoi.com
+    url: https://www.barikoi.com/
+x-logo:
+  url: barikoi.png
+  x-altText: Barikoi
+tags:
+  - name: v2.0
+    x-displayName: Location API
+    description: Version 2.0 Endpoints for Location Services
+servers:
+  - url: https://barikoi.xyz
+    description: Barikoi API Server
+security:
+  - api_key: []
+paths:
+  /v2/api/search/reverse/geocode:
+    get:
+      operationId: reverseGeocode
+      tags: [v2.0]
+      summary: Reverse Geocoding
+      parameters:
+        - $ref: '#/components/parameters/api_key'
+        - name: longitude
+          in: query
+          required: true
+          schema:
+            type: number
+          example: 90.35722628659195
+        - name: latitude
+          in: query
+          required: true
+          schema:
+            type: number
+          example: 23.806703092211507
+        - name: country_code
+          in: query
+          schema:
+            type: string
+          example: 'BD'
+        - name: country
+          in: query
+          schema:
+            type: boolean
+          example: true
+        - name: district
+          in: query
+          schema:
+            type: boolean
+          example: true
+        - name: post_code
+          in: query
+          schema:
+            type: boolean
+          example: true
+        - name: sub_district
+          in: query
+          schema:
+            type: boolean
+          example: true
+        - name: union
+          in: query
+          schema:
+            type: boolean
+          example: true
+        - name: pauroshova
+          in: query
+          schema:
+            type: boolean
+          example: true
+        - name: location_type
+          in: query
+          schema:
+            type: boolean
+          example: true
+        - name: division
+          in: query
+          schema:
+            type: boolean
+          example: true
+        - name: address
+          in: query
+          schema:
+            type: boolean
+          example: true
+        - name: area
+          in: query
+          schema:
+            type: boolean
+          example: true
+        - name: bangla
+          in: query
+          schema:
+            type: boolean
+          example: true
+        - name: thana
+          in: query
+          schema:
+            type: boolean
+          example: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/reverse_geocode_success'
+        '400':
+          $ref: '#/components/responses/missing_parameter'
+        '401':
+          $ref: '#/components/responses/no_registered_key'
+        '402':
+          $ref: '#/components/responses/payment_exception'
+        '429':
+          $ref: '#/components/responses/api_limit_exceeded'
+      description: "This API endpoint performs reverse geocoding to convert geographical coordinates (longitude and latitude) into a human-readable address. It provides detailed location information including the address in both English and Bangla, along with other administrative details such as district, division, and more.\n\n**IMPORTANT:**\_⚠️ Enabling\_**all**\_optional parameters will trigger multiple internal API calls, which will consume more of your API credits. To optimize performance and reduce credit usage, only request the parameters that are essential for your use case."
+  /v2/api/search/autocomplete/place:
+    get:
+      operationId: autocomplete
+      tags: [v2.0]
+      summary: Autocomplete
+      parameters:
+        - $ref: '#/components/parameters/api_key'
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+          example: barikoi
+        - name: bangla
+          in: query
+          description: Return Bangla fields in the response.
+          schema:
+            type: boolean
+            default: true
+          example: true
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/autocomplete_success'
+        '400':
+          $ref: '#/components/responses/missing_parameter'
+        '401':
+          $ref: '#/components/responses/no_registered_key'
+        '402':
+          $ref: '#/components/responses/payment_exception'
+        '429':
+          $ref: '#/components/responses/api_limit_exceeded'
+      description: >-
+        Barikoi Autocomplete API endpoint provides autocomplete suggestions for
+        place names based on a query string. It returns a list of matching
+        places with detailed information including addresses in both English and
+        Bangla, as well as geographic coordinates. Barikoi Autocomplete API is
+        useful for providing real-time, location-based search suggestions to
+        users as they type, enhancing the user experience by quickly narrowing
+        down potential matches based on partial input.
+  /v2/api/search/rupantor/geocode:
+    post:
+      operationId: geocode
+      tags: [v2.0]
+      summary: Geocode (Rupantor)
+      parameters:
+        - $ref: '#/components/parameters/api_key'
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/geocode_body'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/geocode_success'
+        '400':
+          $ref: '#/components/responses/missing_parameter'
+        '401':
+          $ref: '#/components/responses/no_registered_key'
+        '402':
+          $ref: '#/components/responses/payment_exception'
+        '429':
+          $ref: '#/components/responses/api_limit_exceeded'
+      description: >-
+        Rupantor Geocoder API for Developers. It formats the given address and
+        searches for the address and gives a status if the address is complete
+        or not. Rupantor Geocoder only supports FormData. So use FormData object
+        to send your data. Rupantor Geocoder needs Geocode API to function
+        properly. One Rupantor Geocoder request requires two Geocode API
+        requests.
+  /v2/api/route/{coordinates}:
+    get:
+      operationId: routeOverview
+      tags: [v2.0]
+      summary: Route Overview
+      parameters:
+        - $ref: '#/components/parameters/api_key'
+        - $ref: '#/components/parameters/coordinates'
+        - $ref: '#/components/parameters/geometries'
+        - name: profile
+          in: query
+          schema:
+            type: string
+            enum: [car, foot]
+          example: foot
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/route_overview_success'
+        '400':
+          $ref: '#/components/responses/missing_parameter'
+        '401':
+          $ref: '#/components/responses/no_registered_key'
+        '402':
+          $ref: '#/components/responses/payment_exception'
+        '429':
+          $ref: '#/components/responses/api_limit_exceeded'
+      description: >-
+        This API endpoint retrieves route information between two geographical
+        points specified by their longitude and latitude coordinates. The
+        response includes details such as the geometry of the route, distance,
+        duration, and waypoints.
+  /v2/api/routing:
+    post:
+      operationId: calculateRoute
+      tags: [v2.0]
+      summary: Calculate Route
+      parameters:
+        - $ref: '#/components/parameters/api_key'
+        - $ref: '#/components/parameters/type'
+        - name: profile
+          in: query
+          schema:
+            type: string
+            enum: [car, bike, motorcycle]
+          example: motorcycle
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/calculate_route_success'
+        '400':
+          $ref: '#/components/responses/missing_parameter'
+        '401':
+          $ref: '#/components/responses/no_registered_key'
+        '402':
+          $ref: '#/components/responses/payment_exception'
+        '429':
+          $ref: '#/components/responses/api_limit_exceeded'
+      description: >-
+        This API response is intended for use in applications requiring detailed
+        route information and navigation instructions. Such applications might
+        include: GPS navigation systems, Mapping services, Route optimization
+        tools for logistics and delivery, Travel planning apps.These can guide
+        users from their starting point to their destination, providing clear,
+        step-by-step directions, estimated travel times, and costs associated
+        with the journey.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/calculate_route_body'
+  /v2/api/route/optimized:
+    post:
+      operationId: optimizeRoute
+      tags: [v2.0]
+      summary: Route Optimization
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/route_optimization_success'
+        '400':
+          $ref: '#/components/responses/missing_parameter'
+        '401':
+          $ref: '#/components/responses/no_registered_key'
+        '402':
+          $ref: '#/components/responses/payment_exception'
+        '429':
+          $ref: '#/components/responses/api_limit_exceeded'
+      description: >-
+        This api provides routing details from source to destination points.
+        Additional waypoints can also be included in order to get more precise
+        routing experience. Maximum 50 waypoints can be included as additional
+        points. Content-Types:application/json should be attached to the request
+        header in order to match the correct request format.
+
+
+        Note: Waypoints will be sorted based on given id in ascending order.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/route_optimization_body'
+  /api/v2/search-place:
+    get:
+      operationId: searchPlace
+      tags: [v2.0]
+      summary: Search Place
+      parameters:
+        - $ref: '#/components/parameters/api_key'
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+          example: barikoi
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/search_place_success'
+        '400':
+          $ref: '#/components/responses/missing_parameter'
+        '401':
+          $ref: '#/components/responses/no_registered_key'
+        '402':
+          $ref: '#/components/responses/payment_exception'
+        '429':
+          $ref: '#/components/responses/api_limit_exceeded'
+      description: "This API endpoint searches for places that match a given query string. It returns a list of matching places, including their addresses and unique place codes. This API is useful for searching and retrieving detailed information about places based on a given query string, which can be helpful for location-based services, mapping, and navigation applications.\n\n**Note: Each request to this API generates a new session ID. The session ID is crucial for testing and tracking API interactions. Make sure to include the session ID in**\_[<b>Get Place Details</b>](https://docs.barikoi.com/api#tag/v2.0/operation/Search_PlGet_Place_Detailsace)\_**API request to ensure proper functionality.**"
+  /api/v2/places:
+    get:
+      operationId: placeDetails
+      tags: [v2.0]
+      summary: Place Details
+      parameters:
+        - $ref: '#/components/parameters/api_key'
+        - $ref: '#/components/parameters/place_code'
+        - $ref: '#/components/parameters/session_id'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/place_details_success'
+        '400':
+          $ref: '#/components/responses/missing_parameter'
+        '401':
+          $ref: '#/components/responses/no_registered_key'
+        '402':
+          $ref: '#/components/responses/payment_exception'
+        '429':
+          $ref: '#/components/responses/api_limit_exceeded'
+      description: "This API endpoint retrieves information about a specific place identified by the place code (in this case \"BKOI2017\") from the Barikoi platform. It returns essential details such as the address and geographic coordinates of the requested place, which can be useful for various location-based applications or services.\n\n**Note: It requires the place code for the desired location and utilizes the session ID generated from the previous**\_[<b>Search Place</b>](https://docs.barikoi.com/api#tag/v2.0/operation/Search_Place)\_**request for maintaining session continuity.**"
+  /v2/api/routing/nearest:
+    get:
+      operationId: snapToRoad
+      tags: [v2.0]
+      summary: Snap to Road
+      parameters:
+        - $ref: '#/components/parameters/api_key'
+        - $ref: '#/components/parameters/point'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/snap_to_road_success'
+        '400':
+          $ref: '#/components/responses/missing_parameter'
+        '401':
+          $ref: '#/components/responses/no_registered_key'
+        '402':
+          $ref: '#/components/responses/payment_exception'
+        '429':
+          $ref: '#/components/responses/api_limit_exceeded'
+      description: >-
+        Snap to Road API endpoint retrieves the nearest point on the road
+        network to a specified geographical point (latitude and longitude). It
+        returns the coordinates of the nearest point and the distance from the
+        specified point to this nearest point. Snap to Road API is useful for
+        finding the closest road location to a given geographic point, which can
+        be used in various applications such as route planning, geofencing, and
+        location-based services.
+  /v2/api/search/nearby/{radius}/{limit}:
+    get:
+      operationId: nearby
+      tags: [v2.0]
+      summary: Nearby Places
+      description: Finds nearby places within a radius and limit using latitude/longitude.
+      parameters:
+        - $ref: '#/components/parameters/api_key'
+        - $ref: '#/components/parameters/radius'
+        - $ref: '#/components/parameters/limit'
+        - name: longitude
+          in: query
+          required: true
+          schema:
+            type: number
+          example: 90.38305163
+        - name: latitude
+          in: query
+          required: true
+          schema:
+            type: number
+          example: 23.87188719
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/nearby_success'
+        '400':
+          $ref: '#/components/responses/missing_parameter'
+        '401':
+          $ref: '#/components/responses/no_registered_key'
+        '402':
+          $ref: '#/components/responses/payment_exception'
+        '429':
+          $ref: '#/components/responses/api_limit_exceeded'
+  /v2/api/check/nearby:
+    get:
+      operationId: checkNearby
+      tags: [v2.0]
+      summary: Check Nearby
+      description: Checks whether a destination point is within a given radius of a current point.
+      parameters:
+        - $ref: '#/components/parameters/api_key'
+        - name: destination_latitude
+          in: query
+          required: true
+          schema:
+            type: number
+          example: 23.7624553867393
+        - name: destination_longitude
+          in: query
+          required: true
+          schema:
+            type: number
+          example: 90.37852866512583
+        - name: radius
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 10
+            maximum: 1000
+          description: 'Search radius in meters'
+          example: 50
+        - name: current_latitude
+          in: query
+          required: true
+          schema:
+            type: number
+          example: 23.762412943322726
+        - name: current_longitude
+          in: query
+          required: true
+          schema:
+            type: number
+          example: 90.37864864706823
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/check_nearby_success'
+        '400':
+          $ref: '#/components/responses/missing_parameter'
+        '401':
+          $ref: '#/components/responses/no_registered_key'
+        '402':
+          $ref: '#/components/responses/payment_exception'
+        '429':
+          $ref: '#/components/responses/api_limit_exceeded'
+components:
+  securitySchemes:
+    api_key:
+      type: apiKey
+      name: api_key
+      in: query
+  schemas:
+    # Reverse Geocode Response
+    reverse_geocode_success:
+      type: object
+      properties:
+        place:
+          type: object
+          properties:
+            id:
+              oneOf:
+                - type: string
+                - type: integer
+              example: 6488
+            distance_within_meters:
+              type: number
+              example: 3.6856
+            address:
+              type: string
+              example: 'House 8, Road 2, Block C, Section 2, Mirpur, Dhaka'
+            area:
+              type: string
+              example: 'Mirpur'
+            city:
+              type: string
+              example: 'Dhaka'
+            postCode:
+              type: string
+              example: '1216'
+            address_bn:
+              type: string
+              example: 'বাড়ি ৮, রোড ২, ব্লক সি, সেকশন ২, মিরপুর, ঢাকা'
+            area_bn:
+              type: string
+            city_bn:
+              type: string
+            country:
+              type: string
+            division:
+              type: string
+            district:
+              type: string
+            sub_district:
+              type: string
+            pauroshova:
+              type: string
+              nullable: true
+            union:
+              type: string
+              nullable: true
+            location_type:
+              type: string
+            address_components:
+              type: object
+              nullable: true
+              properties:
+                place_name:
+                  type: string
+                  nullable: true
+                house:
+                  type: string
+                  nullable: true
+                road:
+                  type: string
+                  nullable: true
+            area_components:
+              type: object
+              nullable: true
+              properties:
+                area:
+                  type: string
+                  nullable: true
+                sub_area:
+                  type: string
+                  nullable: true
+            thana:
+              type: string
+            thana_bn:
+              type: string
+        status:
+          type: integer
+          example: 200
+
+    # Autocomplete Response
+    autocomplete_success:
+      type: object
+      properties:
+        places:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+                example: 635085
+              longitude:
+                oneOf:
+                  - type: string
+                  - type: number
+                example: '90.369999116958'
+              latitude:
+                oneOf:
+                  - type: string
+                  - type: number
+                example: '23.83729875602'
+              address:
+                type: string
+                example: 'Mirpur DOHS, Mirpur DOHS'
+              address_bn:
+                type: string
+              city:
+                type: string
+                example: 'Dhaka'
+              city_bn:
+                type: string
+              area:
+                type: string
+              area_bn:
+                type: string
+              postCode:
+                oneOf:
+                  - type: string
+                  - type: integer
+                example: 1216
+              pType:
+                type: string
+                example: 'Admin'
+              uCode:
+                type: string
+                example: 'PFSU6037'
+        status:
+          type: integer
+          example: 200
+
+    # Rupantor Geocoder Response
+    geocode_success:
+      type: object
+      properties:
+        given_address:
+          type: string
+          example: 'shawrapara'
+        fixed_address:
+          type: string
+          example: 'shewrapara, mirpur'
+        bangla_address:
+          type: string
+        address_status:
+          type: string
+          enum: [complete, incomplete]
+          example: 'incomplete'
+        geocoded_address:
+          type: object
+          properties:
+            id:
+              oneOf:
+                - type: string
+                - type: integer
+            Address:
+              type: string
+            address:
+              type: string
+            address_bn:
+              type: string
+            alternate_address:
+              type: string
+            area:
+              type: string
+            area_bn:
+              type: string
+            bounds:
+              type: string
+              nullable: true
+            business_name:
+              type: string
+              nullable: true
+            city:
+              type: string
+            city_bn:
+              type: string
+            created_at:
+              type: string
+            district:
+              type: string
+            geo_location:
+              type: array
+              items:
+                type: number
+            holding_number:
+              type: string
+              nullable: true
+            latitude:
+              type: string
+            location:
+              type: string
+            location_shape:
+              type: string
+            longitude:
+              type: string
+            match_freq:
+              type: integer
+            match_fuzzy:
+              type: integer
+            matching_diff:
+              type: integer
+            new_address:
+              type: string
+            pType:
+              type: string
+            place_code:
+              type: string
+            place_name:
+              type: string
+              nullable: true
+            popularity_ranking:
+              type: integer
+            postCode:
+              oneOf:
+                - type: string
+                - type: integer
+            postcode:
+              oneOf:
+                - type: string
+                - type: integer
+            road_name_number:
+              type: string
+              nullable: true
+            score:
+              type: number
+            subType:
+              type: string
+            sub_area:
+              type: string
+              nullable: true
+            sub_district:
+              type: string
+            sub_type:
+              type: string
+            super_sub_area:
+              type: string
+              nullable: true
+            thana:
+              type: string
+            type:
+              type: string
+            uCode:
+              type: string
+            union:
+              nullable: true
+              oneOf:
+                - type: string
+                - type: integer
+            unions:
+              nullable: true
+              oneOf:
+                - type: string
+                - type: integer
+            updated_at:
+              type: string
+            user_id:
+              type: integer
+        confidence_score_percentage:
+          type: integer
+          example: 70
+        status:
+          type: integer
+          example: 200
+
+    # Route Overview Response
+    route_overview_success:
+      type: object
+      properties:
+        code:
+          type: string
+          example: 'OK'
+        routes:
+          type: array
+          items:
+            type: object
+            properties:
+              geometry:
+                oneOf:
+                  - type: string
+                  - type: object
+                description: 'Encoded polyline (string) or GeoJSON (object)'
+              legs:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    steps:
+                      type: array
+                      items:
+                        type: object
+                    distance:
+                      type: number
+                      description: 'Distance in meters'
+                      example: 31580.5
+                    duration:
+                      type: number
+                      description: 'Duration in seconds'
+                      example: 5011.5
+                    summary:
+                      type: string
+                    weight:
+                      type: number
+              distance:
+                type: number
+                example: 31580.5
+              duration:
+                type: number
+                example: 5011.5
+              weight_name:
+                type: string
+                example: 'routability'
+              weight:
+                type: number
+        waypoints:
+          type: array
+          items:
+            type: object
+            properties:
+              hint:
+                type: string
+              distance:
+                type: number
+              name:
+                type: string
+                nullable: true
+              location:
+                type: array
+                items:
+                  type: number
+                minItems: 2
+                maxItems: 2
+
+    # Search Place Response
+    search_place_success:
+      type: object
+      properties:
+        places:
+          type: array
+          items:
+            type: object
+            properties:
+              address:
+                type: string
+              place_code:
+                type: string
+        session_id:
+          type: string
+          format: uuid
+        status:
+          type: integer
+          example: 200
+
+    # Place Details Response
+    place_details_success:
+      type: object
+      properties:
+        place:
+          type: object
+          properties:
+            address:
+              type: string
+            place_code:
+              type: string
+            latitude:
+              type: string
+            longitude:
+              type: string
+        session_id:
+          type: string
+          format: uuid
+        status:
+          type: integer
+          example: 200
+
+    # Snap to Road Response
+    snap_to_road_success:
+      type: object
+      properties:
+        coordinates:
+          type: array
+          items:
+            type: number
+          minItems: 2
+          maxItems: 2
+          example: [90.36288583910802, 23.80475086627028]
+        distance:
+          type: number
+          description: 'Distance in meters'
+          example: 0.5866113852736488
+        type:
+          type: string
+          enum: [Point]
+          example: 'Point'
+
+    # Nearby Response
+    nearby_success:
+      type: object
+      properties:
+        places:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+              distance_in_meters:
+                oneOf:
+                  - type: string
+                  - type: number
+              longitude:
+                type: string
+              latitude:
+                type: string
+              pType:
+                type: string
+              Address:
+                type: string
+              area:
+                type: string
+              city:
+                type: string
+              postCode:
+                type: string
+              subType:
+                type: string
+              uCode:
+                type: string
+        status:
+          type: integer
+          example: 200
+
+    # Route Optimization Response
+    route_optimization_success:
+      type: object
+      properties:
+        hints:
+          type: object
+          properties:
+            visited_nodes.sum:
+              type: number
+            visited_nodes.average:
+              type: number
+        info:
+          type: object
+          properties:
+            copyrights:
+              type: array
+              items:
+                type: string
+            took:
+              type: number
+        paths:
+          type: array
+          items:
+            type: object
+            properties:
+              distance:
+                type: number
+                description: 'Distance in meters'
+              weight:
+                type: number
+              time:
+                type: integer
+                description: 'Time in milliseconds'
+              transfers:
+                type: integer
+              points_encoded:
+                type: boolean
+              bbox:
+                type: array
+                items:
+                  type: number
+                minItems: 4
+                maxItems: 4
+              points:
+                type: string
+                description: 'Encoded polyline'
+              instructions:
+                type: array
+                items:
+                  type: object
+              legs:
+                type: array
+                items:
+                  type: object
+              details:
+                oneOf:
+                  - type: object
+                  - type: array
+                    items:
+                      type: object
+              ascend:
+                type: number
+              descend:
+                type: number
+              snapped_waypoints:
+                type: string
+
+    # Detailed Routing Response (GraphHopper format)
+    calculate_route_success:
+      type: object
+      properties:
+        hints:
+          type: object
+          properties:
+            visited_nodes.sum:
+              type: number
+              example: 184
+            visited_nodes.average:
+              type: number
+              example: 184
+        info:
+          type: object
+          properties:
+            copyrights:
+              type: array
+              items:
+                type: string
+              example: ["GraphHopper", "OpenStreetMap contributors"]
+            took:
+              type: number
+              example: 2
+            road_data_timestamp:
+              type: string
+              example: "1970-01-01T00:00:00Z"
+        paths:
+          type: array
+          items:
+            type: object
+            properties:
+              distance:
+                type: number
+                description: 'Distance in meters'
+                example: 11850.938
+              weight:
+                type: number
+                example: 2671.119536
+              time:
+                type: number
+                description: 'Time in milliseconds'
+                example: 1604534
+              transfers:
+                type: integer
+                example: 0
+              points_encoded:
+                type: boolean
+                example: false
+              bbox:
+                type: array
+                items:
+                  type: number
+                minItems: 4
+                maxItems: 4
+                example: [90.374253, 23.744679, 90.413263, 23.814402]
+              points:
+                type: object
+                description: 'GeoJSON LineString with route coordinates'
+                properties:
+                  type:
+                    type: string
+                    enum: [LineString]
+                    example: "LineString"
+                  coordinates:
+                    type: array
+                    items:
+                      type: array
+                      items:
+                        type: number
+                      minItems: 2
+                      maxItems: 2
+              instructions:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    distance:
+                      type: number
+                    heading:
+                      type: number
+                    sign:
+                      type: integer
+                    interval:
+                      type: array
+                      items:
+                        type: integer
+                      minItems: 2
+                      maxItems: 2
+                    text:
+                      type: string
+                    time:
+                      type: number
+                    street_name:
+                      type: string
+              legs:
+                type: array
+                example: []
+                items:
+                  type: object
+              details:
+                type: array
+                example: []
+                items:
+                  type: object
+              ascend:
+                type: number
+                example: 0
+              descend:
+                type: number
+                example: 0
+              snapped_waypoints:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    enum: [LineString]
+                    example: "LineString"
+                  coordinates:
+                    type: array
+                    items:
+                      type: array
+                      items:
+                        type: number
+                      minItems: 2
+                      maxItems: 2
+                    example: [[90.412494, 23.810399], [90.374253, 23.746129]]
+
+    # Request Body Schemas
+    geocode_body:
+      type: object
+      required: [q]
+      properties:
+        q:
+          type: string
+          description: 'Address to geocode'
+        thana:
+          type: string
+          enum: [yes, no]
+        district:
+          type: string
+          enum: [yes, no]
+        bangla:
+          type: string
+          enum: [yes, no]
+
+    calculate_route_body:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [start, destination]
+          properties:
+            start:
+              type: object
+              required: [latitude, longitude]
+              properties:
+                latitude:
+                  type: number
+                  minimum: -90
+                  maximum: 90
+                longitude:
+                  type: number
+                  minimum: -180
+                  maximum: 180
+            destination:
+              type: object
+              required: [latitude, longitude]
+              properties:
+                latitude:
+                  type: number
+                  minimum: -90
+                  maximum: 90
+                longitude:
+                  type: number
+                  minimum: -180
+                  maximum: 180
+
+    route_optimization_body:
+      type: object
+      required: [api_key, source, destination, geo_points]
+      properties:
+        api_key:
+          type: string
+        source:
+          type: string
+          description: 'Format: latitude,longitude'
+          example: '23.746086,90.37368'
+        destination:
+          type: string
+          description: 'Format: latitude,longitude'
+          example: '23.746214,90.371654'
+        profile:
+          type: string
+          enum: [car, bike, foot, motorcycle]
+          default: car
+        geo_points:
+          type: array
+          items:
+            type: object
+            required: [id, point]
+            properties:
+              id:
+                type: integer
+              point:
+                type: string
+                description: 'Format: latitude,longitude'
+          minItems: 1
+          maxItems: 50
+
+    # Check Nearby Response
+    check_nearby_success:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Inside geo fence'
+        status:
+          type: integer
+          example: 200
+        data:
+          type: object
+          properties:
+            id:
+              type: string
+              example: '68e5f2ab382b2'
+            name:
+              type: string
+              example: 'destination'
+            radius:
+              type: string
+              example: '1000'
+            latitude:
+              type: string
+              example: '23.76245538673939'
+            longitude:
+              type: string
+              example: '90.37852866512583'
+            user_id:
+              type: integer
+              example: 1624
+
+    # Error Responses
+    missing_parameter:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Parameter missing'
+        status:
+          type: integer
+          example: 400
+
+    no_registered_key:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Invalid or No Registered Key'
+        status:
+          type: integer
+          example: 401
+
+    payment_exception:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'Payment exception'
+        status:
+          type: integer
+          example: 402
+
+    api_limit_exceeded:
+      type: object
+      properties:
+        message:
+          type: string
+          example: 'API LIMIT EXCEEDED'
+        status:
+          type: integer
+          example: 429
+
+  parameters:
+    # Barikoi API Key
+    api_key:
+      name: api_key
+      in: query
+      required: true
+      schema:
+        type: string
+
+    # Country Code (ISO Alpha-2)
+    # countryCode:
+    #   name: country_code
+    #   in: query
+    #   required: false
+    #   schema:
+    #     type: string
+    #   description: |
+    #     The **two-letter** country code **(ISO Alpha-2)** representing the desired country.
+    #     Example: `sa` (Saudi Arabia)
+    #     **Default Value**: `bd` (Bangladesh)
+
+    # # Country Code (ISO Alpha-3)
+    # countryCodeAlpha3:
+    #   name: country_code
+    #   in: query
+    #   required: false
+    #   schema:
+    #     type: string
+    #   description: |
+    #     The **three-letter** country code **(ISO Alpha-3)** representing the desired country.
+    #     Example: `sau` (Saudi Arabia)
+    #     **Default Value**: `bgd` (Bangladesh)
+
+    # Geometries format
+    geometries:
+      name: geometries
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [polyline, polyline6, geojson]
+        default: polyline
+      description: 'Returned route geometry format. Expected values: polyline, polyline6, geojson'
+
+    # Place code
+    place_code:
+      name: place_code
+      in: query
+      required: true
+      schema:
+        type: string
+      description: 'Place code from search results'
+
+    # Session ID
+    session_id:
+      name: session_id
+      in: query
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: 'Session ID from search-place endpoint'
+
+    # Point (lat,lon string)
+    point:
+      name: point
+      in: query
+      required: true
+      schema:
+        type: string
+      description: 'Format: latitude,longitude'
+      example: '23.8065,90.3613'
+
+    # Coordinates (path parameter)
+    coordinates:
+      name: coordinates
+      in: path
+      required: true
+      schema:
+        type: string
+      description: 'Format: lon,lat;lon,lat'
+      example: '90.3625,23.9410;90.3158,24.1342'
+
+    # Radius and Limit for nearby (PATH parameters)
+    radius:
+      name: radius
+      in: path
+      required: true
+      schema:
+        type: number
+        minimum: 0.1
+        maximum: 100
+      description: 'Search radius in kilometers'
+      example: 0.5
+
+    limit:
+      name: limit
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+      description: 'Maximum number of results'
+      example: 10
+
+    # Type parameter
+    type:
+      name: type
+      in: query
+      required: true
+      schema:
+        type: string
+        enum: [gh]
+      description: 'Route calculation type'
+      example: gh
+
+  responses:
+    missing_parameter:
+      description: 'Missing required parameter'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/missing_parameter'
+
+    no_registered_key:
+      description: 'Invalid API key'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/no_registered_key'
+
+    payment_exception:
+      description: 'Payment required'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/payment_exception'
+
+    api_limit_exceeded:
+      description: 'Rate limit exceeded'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/api_limit_exceeded'

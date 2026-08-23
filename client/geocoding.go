@@ -2,16 +2,20 @@ package client
 
 import (
 	"context"
-	"net/url"
+	"encoding/json"
+	"net/http"
+
+	"github.com/barikoi/barikoiapis-golang/gen"
 )
 
 // ReverseGeocodeRequest converts coordinates to a human-readable address.
 // Each boolean flag opts in to extra fields in the response; every enabled
 // flag may consume additional API credits, so request only what you need.
+// CountryCode defaults to "BD" when empty.
 type ReverseGeocodeRequest struct {
 	Latitude     float64
 	Longitude    float64
-	CountryCode  string // two-letter ISO Alpha-2 code, e.g. "bd"
+	CountryCode  string // two-letter ISO Alpha-2 code, e.g. "BD"
 	Country      bool
 	District     bool
 	PostCode     bool
@@ -41,12 +45,15 @@ type ReverseGeocodePlace struct {
 	Division             string     `json:"division"`
 	District             string     `json:"district"`
 	SubDistrict          string     `json:"sub_district"`
+	Union                string     `json:"union"`
+	Pauroshova           string     `json:"pauroshova"`
 	LocationType         string     `json:"location_type"`
 	Thana                string     `json:"thana"`
 	ThanaBn              string     `json:"thana_bn"`
 	AddressComponents    struct {
-		House string `json:"house"`
-		Road  string `json:"road"`
+		PlaceName string `json:"place_name"`
+		House     string `json:"house"`
+		Road      string `json:"road"`
 	} `json:"address_components"`
 	AreaComponents struct {
 		Area    string `json:"area"`
@@ -60,44 +67,54 @@ type ReverseGeocodeResponse struct {
 	Status int                 `json:"status"`
 }
 
-// ReverseGeocode converts coordinates (longitude, latitude) to a
+// ReverseGeocode converts coordinates (latitude, longitude) to a
 // human-readable address via GET /v2/api/search/reverse/geocode.
 func (c *Client) ReverseGeocode(ctx context.Context, req *ReverseGeocodeRequest) (*ReverseGeocodeResponse, error) {
 	if err := validateCoords(req.Latitude, req.Longitude); err != nil {
 		return nil, err
 	}
-	q := url.Values{}
-	q.Set("latitude", formatFloat(req.Latitude))
-	q.Set("longitude", formatFloat(req.Longitude))
-	if req.CountryCode != "" {
-		q.Set("country_code", req.CountryCode)
+	countryCode := req.CountryCode
+	if countryCode == "" {
+		countryCode = "BD" // default, matching the TypeScript SDK
 	}
-	setBoolParam(q, "country", req.Country)
-	setBoolParam(q, "district", req.District)
-	setBoolParam(q, "post_code", req.PostCode)
-	setBoolParam(q, "sub_district", req.SubDistrict)
-	setBoolParam(q, "union", req.Union)
-	setBoolParam(q, "pauroshova", req.Pauroshova)
-	setBoolParam(q, "location_type", req.LocationType)
-	setBoolParam(q, "division", req.Division)
-	setBoolParam(q, "address", req.Address)
-	setBoolParam(q, "area", req.Area)
-	setBoolParam(q, "bangla", req.Bangla)
-	setBoolParam(q, "thana", req.Thana)
+	params := &gen.ReverseGeocodeParams{
+		ApiKey:       c.apiKeyParam(),
+		Latitude:     req.Latitude,
+		Longitude:    req.Longitude,
+		CountryCode:  &countryCode,
+		Country:      optBool(req.Country),
+		District:     optBool(req.District),
+		PostCode:     optBool(req.PostCode),
+		SubDistrict:  optBool(req.SubDistrict),
+		Union:        optBool(req.Union),
+		Pauroshova:   optBool(req.Pauroshova),
+		LocationType: optBool(req.LocationType),
+		Division:     optBool(req.Division),
+		Address:      optBool(req.Address),
+		Area:         optBool(req.Area),
+		Bangla:       optBool(req.Bangla),
+		Thana:        optBool(req.Thana),
+	}
 
 	var resp ReverseGeocodeResponse
-	if err := c.doGet(ctx, "/v2/api/search/reverse/geocode", q, &resp); err != nil {
+	err := c.do(ctx, func(ctx context.Context) (*http.Response, error) { return c.gen.ReverseGeocode(ctx, params) }, &resp)
+	if err != nil {
 		return nil, err
 	}
 	return &resp, nil
 }
 
 // AutocompleteRequest describes a partial place query. Q is required.
+// Bangla defaults to true when nil, matching the TypeScript SDK; set it to
+// false explicitly (BoolPtr(false)) to omit Bangla fields.
 type AutocompleteRequest struct {
 	Q      string
-	Bangla bool
-	City   string // restrict suggestions to a city, e.g. "dhaka"
+	Bangla *bool
 }
+
+// BoolPtr returns a pointer to v, for optional boolean fields such as
+// AutocompleteRequest.Bangla.
+func BoolPtr(v bool) *bool { return &v }
 
 // AutocompletePlace is one suggestion returned by Autocomplete.
 type AutocompletePlace struct {
@@ -110,8 +127,10 @@ type AutocompletePlace struct {
 	CityBn    string     `json:"city_bn"`
 	Area      string     `json:"area"`
 	AreaBn    string     `json:"area_bn"`
+	District  string     `json:"district"`
 	PostCode  FlexString `json:"postCode"`
 	PType     string     `json:"pType"`
+	SubType   string     `json:"subType"`
 	UCode     string     `json:"uCode"`
 }
 
@@ -127,22 +146,25 @@ func (c *Client) Autocomplete(ctx context.Context, req *AutocompleteRequest) (*A
 	if err := requireString("q", req.Q); err != nil {
 		return nil, err
 	}
-	q := url.Values{}
-	q.Set("q", req.Q)
-	setBoolParam(q, "bangla", req.Bangla)
-	if req.City != "" {
-		q.Set("city", req.City)
+	bangla := req.Bangla == nil || *req.Bangla
+	params := &gen.AutocompleteParams{
+		ApiKey: c.apiKeyParam(),
+		Q:      req.Q,
+		Bangla: &bangla,
 	}
 
 	var resp AutocompleteResponse
-	if err := c.doGet(ctx, "/v2/api/search/autocomplete/place", q, &resp); err != nil {
+	err := c.do(ctx, func(ctx context.Context) (*http.Response, error) { return c.gen.Autocomplete(ctx, params) }, &resp)
+	if err != nil {
 		return nil, err
 	}
 	return &resp, nil
 }
 
 // GeocodeRequest formats and geocodes an address string (the Rupantor
-// geocoder). Q is required; the boolean flags request extra fields.
+// geocoder). Q is required; the boolean flags request extra fields and are
+// sent as "yes" only when true, matching the TypeScript SDK's omission
+// behavior.
 type GeocodeRequest struct {
 	Q        string
 	Thana    bool
@@ -150,12 +172,15 @@ type GeocodeRequest struct {
 	Bangla   bool
 }
 
-// GeocodedPlace is the matched place returned by Geocode.
+// GeocodedPlace is the matched place returned by Geocode. The API returns
+// the address under an "address" or "Address" key depending on the query;
+// both are accepted and Address is populated from either.
 type GeocodedPlace struct {
 	ID                int64      `json:"id"`
 	UCode             string     `json:"uCode"`
 	PlaceCode         string     `json:"place_code"`
 	Address           string     `json:"address"`
+	AddressTitle      string     `json:"Address"`
 	AddressBn         string     `json:"address_bn"`
 	BusinessName      string     `json:"business_name"`
 	Area              string     `json:"area"`
@@ -170,10 +195,26 @@ type GeocodedPlace struct {
 	PType             string     `json:"pType"`
 	SubType           string     `json:"subType"`
 	PostCode          FlexString `json:"postCode"`
+	Postcode          FlexString `json:"postcode"`
 	Longitude         FlexFloat  `json:"longitude"`
 	Latitude          FlexFloat  `json:"latitude"`
 	GeoLocation       []float64  `json:"geo_location"` // [longitude, latitude]
 	PopularityRanking int        `json:"popularity_ranking"`
+}
+
+// UnmarshalJSON fills Address from the "address" key, falling back to the
+// "Address" key that some Rupantor responses use instead.
+func (p *GeocodedPlace) UnmarshalJSON(data []byte) error {
+	type geocodedPlaceAlias GeocodedPlace
+	var a geocodedPlaceAlias
+	if err := json.Unmarshal(data, &a); err != nil {
+		return err
+	}
+	*p = GeocodedPlace(a)
+	if p.Address == "" {
+		p.Address = p.AddressTitle
+	}
+	return nil
 }
 
 // GeocodeResponse is the response of Geocode.
@@ -189,29 +230,46 @@ type GeocodeResponse struct {
 
 // Geocode formats and geocodes an address string to coordinates via the
 // Rupantor Geocoder, POST /v2/api/search/rupantor/geocode. The endpoint only
-// accepts form-encoded bodies, so the request is sent as such even though the
-// rest of the SDK uses JSON.
+// accepts form-encoded bodies. One Rupantor request consumes two Geocode API
+// credits.
 func (c *Client) Geocode(ctx context.Context, req *GeocodeRequest) (*GeocodeResponse, error) {
 	if err := requireString("q", req.Q); err != nil {
 		return nil, err
 	}
-	form := url.Values{}
-	form.Set("q", req.Q)
-	setYesFormValue(form, "thana", req.Thana)
-	setYesFormValue(form, "district", req.District)
-	setYesFormValue(form, "bangla", req.Bangla)
+	params := &gen.GeocodeParams{ApiKey: c.apiKeyParam()}
+	body := gen.GeocodeBody{
+		Q:        req.Q,
+		Bangla:   yesNo[gen.GeocodeBodyBangla](req.Bangla),
+		District: yesNo[gen.GeocodeBodyDistrict](req.District),
+		Thana:    yesNo[gen.GeocodeBodyThana](req.Thana),
+	}
 
 	var resp GeocodeResponse
-	if err := c.doPostForm(ctx, "/v2/api/search/rupantor/geocode", nil, form, &resp); err != nil {
+	err := c.do(ctx, func(ctx context.Context) (*http.Response, error) {
+		return c.gen.GeocodeWithFormdataBody(ctx, params, body)
+	}, &resp)
+	if err != nil {
 		return nil, err
 	}
 	return &resp, nil
 }
 
-// setYesFormValue sets name to "yes" only when v is true, as the Rupantor
-// geocoder expects.
-func setYesFormValue(form url.Values, name string, v bool) {
-	if v {
-		form.Set(name, "yes")
+// optBool returns a pointer to v for optional boolean query parameters, or
+// nil when v is false so the parameter is omitted — matching the TypeScript
+// SDK, which omits boolean flags the caller did not set.
+func optBool(v bool) *bool {
+	if !v {
+		return nil
 	}
+	return &v
+}
+
+// yesNo maps a boolean flag to the "yes" enum value the Rupantor geocoder
+// expects, or nil to omit the field when the flag is false.
+func yesNo[T ~string](v bool) *T {
+	if !v {
+		return nil
+	}
+	yes := T("yes")
+	return &yes
 }

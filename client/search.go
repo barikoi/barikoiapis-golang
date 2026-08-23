@@ -2,9 +2,10 @@ package client
 
 import (
 	"context"
-	"fmt"
-	"net/url"
-	"strconv"
+	"net/http"
+
+	"github.com/barikoi/barikoiapis-golang/gen"
+	"github.com/google/uuid"
 )
 
 // SearchPlaceRequest holds a place search query. Q is required.
@@ -33,11 +34,11 @@ func (c *Client) SearchPlace(ctx context.Context, req *SearchPlaceRequest) (*Sea
 	if err := requireString("q", req.Q); err != nil {
 		return nil, err
 	}
-	q := url.Values{}
-	q.Set("q", req.Q)
+	params := &gen.SearchPlaceParams{ApiKey: c.apiKeyParam(), Q: req.Q}
 
 	var resp SearchPlaceResponse
-	if err := c.doGet(ctx, "/api/v2/search-place", q, &resp); err != nil {
+	err := c.do(ctx, func(ctx context.Context) (*http.Response, error) { return c.gen.SearchPlace(ctx, params) }, &resp)
+	if err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -75,20 +76,28 @@ func (c *Client) PlaceDetails(ctx context.Context, req *PlaceDetailsRequest) (*P
 	if err := requireString("session_id", req.SessionID); err != nil {
 		return nil, err
 	}
-	q := url.Values{}
-	q.Set("place_code", req.PlaceCode)
-	q.Set("session_id", req.SessionID)
+	sessionID, err := uuid.Parse(req.SessionID)
+	if err != nil {
+		return nil, &ValidationError{Field: "session_id", Message: "must be a UUID"}
+	}
+	params := &gen.PlaceDetailsParams{
+		ApiKey:    c.apiKeyParam(),
+		PlaceCode: req.PlaceCode,
+		SessionId: sessionID,
+	}
 
 	var resp PlaceDetailsResponse
-	if err := c.doGet(ctx, "/api/v2/places", q, &resp); err != nil {
+	err = c.do(ctx, func(ctx context.Context) (*http.Response, error) { return c.gen.PlaceDetails(ctx, params) }, &resp)
+	if err != nil {
 		return nil, err
 	}
 	return &resp, nil
 }
 
 // NearbyRequest searches for places near a point. Radius is in kilometers
-// and must be within [0.1, 100]; Limit must be within [1, 100]. Both are
-// sent as path parameters.
+// and must be within [0.1, 100], defaulting to 0.5 when zero; Limit must be
+// within [1, 100], defaulting to 10 when zero. Both are sent as path
+// parameters.
 type NearbyRequest struct {
 	Latitude  float64
 	Longitude float64
@@ -126,19 +135,30 @@ func (c *Client) Nearby(ctx context.Context, req *NearbyRequest) (*NearbyRespons
 	if err := validateCoords(req.Latitude, req.Longitude); err != nil {
 		return nil, err
 	}
-	if req.Radius < 0.1 || req.Radius > 100 {
+	radius, limit := req.Radius, req.Limit
+	if radius == 0 {
+		radius = 0.5 // default, matching the TypeScript SDK
+	}
+	if limit == 0 {
+		limit = 10 // default, matching the TypeScript SDK
+	}
+	if radius < 0.1 || radius > 100 {
 		return nil, &ValidationError{Field: "radius", Message: "must be between 0.1 and 100 (kilometers)"}
 	}
-	if req.Limit < 1 || req.Limit > 100 {
+	if limit < 1 || limit > 100 {
 		return nil, &ValidationError{Field: "limit", Message: "must be between 1 and 100"}
 	}
-	path := fmt.Sprintf("/v2/api/search/nearby/%s/%d", formatFloat(req.Radius), req.Limit)
-	q := url.Values{}
-	q.Set("latitude", formatFloat(req.Latitude))
-	q.Set("longitude", formatFloat(req.Longitude))
+	params := &gen.NearbyParams{
+		ApiKey:    c.apiKeyParam(),
+		Latitude:  req.Latitude,
+		Longitude: req.Longitude,
+	}
 
 	var resp NearbyResponse
-	if err := c.doGet(ctx, path, q, &resp); err != nil {
+	err := c.do(ctx, func(ctx context.Context) (*http.Response, error) {
+		return c.gen.Nearby(ctx, gen.Radius(radius), gen.Limit(limit), params)
+	}, &resp)
+	if err != nil {
 		return nil, err
 	}
 	return &resp, nil
@@ -184,15 +204,18 @@ func (c *Client) CheckNearby(ctx context.Context, req *CheckNearbyRequest) (*Che
 	if req.Radius < 10 || req.Radius > 1000 {
 		return nil, &ValidationError{Field: "radius", Message: "must be between 10 and 1000 (meters)"}
 	}
-	q := url.Values{}
-	q.Set("current_latitude", formatFloat(req.CurrentLatitude))
-	q.Set("current_longitude", formatFloat(req.CurrentLongitude))
-	q.Set("destination_latitude", formatFloat(req.DestinationLatitude))
-	q.Set("destination_longitude", formatFloat(req.DestinationLongitude))
-	q.Set("radius", strconv.Itoa(req.Radius))
+	params := &gen.CheckNearbyParams{
+		ApiKey:               c.apiKeyParam(),
+		DestinationLatitude:  req.DestinationLatitude,
+		DestinationLongitude: req.DestinationLongitude,
+		Radius:               req.Radius,
+		CurrentLatitude:      req.CurrentLatitude,
+		CurrentLongitude:     req.CurrentLongitude,
+	}
 
 	var resp CheckNearbyResponse
-	if err := c.doGet(ctx, "/v2/api/check/nearby", q, &resp); err != nil {
+	err := c.do(ctx, func(ctx context.Context) (*http.Response, error) { return c.gen.CheckNearby(ctx, params) }, &resp)
+	if err != nil {
 		return nil, err
 	}
 	return &resp, nil

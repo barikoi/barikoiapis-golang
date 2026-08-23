@@ -1,0 +1,11 @@
+# oapi-codegen configuration — the Go equivalent of the TypeScript repo's
+# openapi-ts.config.ts. Regenerate with `make codegen`.
+#
+# Source of truth: openapi/barikoi-api-spec.yaml
+# Output: gen/ — AUTO-GENERATED, never hand-edit.
+package: gen
+output: gen/gen.go
+generate:
+  models: true        # types.gen.ts equivalent: request/response structs + enums
+  client: true        # sdk.gen.ts equivalent: one HTTP method per operation
+  embedded-spec: false

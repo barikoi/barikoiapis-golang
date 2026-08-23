@@ -1,10 +1,12 @@
-package client
+package barikoi_test
 
 import (
 	"context"
 	"errors"
 	"net/http"
 	"testing"
+
+	barikoi "github.com/barikoi/barikoiapis-golang"
 )
 
 func TestSearchPlaceSuccess(t *testing.T) {
@@ -20,16 +22,16 @@ func TestSearchPlaceSuccess(t *testing.T) {
 		if got, want := r.URL.Path, "/api/v2/search-place"; got != want {
 			t.Errorf("path = %q, want %q", got, want)
 		}
-		if got := r.URL.Query().Get("q"); got != "barikoi" {
+		if got := queryParam(r, "q"); got != "barikoi" {
 			t.Errorf("q = %q, want %q", got, "barikoi")
 		}
-		if got := r.URL.Query().Get("api_key"); got != "test-key" {
+		if got := queryParam(r, "api_key"); got != "test-key" {
 			t.Errorf("api_key = %q, want %q", got, "test-key")
 		}
 		writeJSON(t, w, http.StatusOK, respBody)
 	})
 
-	resp, err := c.SearchPlace(context.Background(), &SearchPlaceRequest{Q: "barikoi"})
+	resp, err := c.SearchPlace(context.Background(), &barikoi.SearchPlaceRequest{Q: "barikoi"})
 	if err != nil {
 		t.Fatalf("SearchPlace: %v", err)
 	}
@@ -42,12 +44,12 @@ func TestSearchPlaceSuccess(t *testing.T) {
 }
 
 func TestSearchPlaceValidation(t *testing.T) {
-	c, err := NewClient("k")
+	c, err := barikoi.NewClient("k")
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = c.SearchPlace(context.Background(), &SearchPlaceRequest{})
-	var ve *ValidationError
+	_, err = c.SearchPlace(context.Background(), &barikoi.SearchPlaceRequest{})
+	var ve *barikoi.ValidationError
 	if !errors.As(err, &ve) || ve.Field != "q" {
 		t.Fatalf("got %v, want *ValidationError{Field: q}", err)
 	}
@@ -68,20 +70,19 @@ func TestPlaceDetailsSuccess(t *testing.T) {
 		if got, want := r.URL.Path, "/api/v2/places"; got != want {
 			t.Errorf("path = %q, want %q", got, want)
 		}
-		q := r.URL.Query()
-		if got := q.Get("place_code"); got != "BKOI2017" {
+		if got := queryParam(r, "place_code"); got != "BKOI2017" {
 			t.Errorf("place_code = %q, want %q", got, "BKOI2017")
 		}
-		if got := q.Get("session_id"); got != "8d6a20cb-e07d-4332-a293-d0cf0fce968e" {
+		if got := queryParam(r, "session_id"); got != "8d6a20cb-e07d-4332-a293-d0cf0fce968e" {
 			t.Errorf("session_id = %q, want 8d6a20cb-...", got)
 		}
-		if got := q.Get("api_key"); got != "test-key" {
+		if got := queryParam(r, "api_key"); got != "test-key" {
 			t.Errorf("api_key = %q, want %q", got, "test-key")
 		}
 		writeJSON(t, w, http.StatusOK, respBody)
 	})
 
-	resp, err := c.PlaceDetails(context.Background(), &PlaceDetailsRequest{
+	resp, err := c.PlaceDetails(context.Background(), &barikoi.PlaceDetailsRequest{
 		PlaceCode: "BKOI2017",
 		SessionID: "8d6a20cb-e07d-4332-a293-d0cf0fce968e",
 	})
@@ -98,18 +99,23 @@ func TestPlaceDetailsSuccess(t *testing.T) {
 }
 
 func TestPlaceDetailsValidation(t *testing.T) {
-	c, err := NewClient("k")
+	c, err := barikoi.NewClient("k")
 	if err != nil {
 		t.Fatal(err)
 	}
-	var ve *ValidationError
-	_, err = c.PlaceDetails(context.Background(), &PlaceDetailsRequest{SessionID: "s"})
+	var ve *barikoi.ValidationError
+	_, err = c.PlaceDetails(context.Background(), &barikoi.PlaceDetailsRequest{SessionID: "8d6a20cb-e07d-4332-a293-d0cf0fce968e"})
 	if !errors.As(err, &ve) || ve.Field != "place_code" {
 		t.Fatalf("got %v, want *ValidationError{Field: place_code}", err)
 	}
-	_, err = c.PlaceDetails(context.Background(), &PlaceDetailsRequest{PlaceCode: "BKOI2017"})
+	_, err = c.PlaceDetails(context.Background(), &barikoi.PlaceDetailsRequest{PlaceCode: "BKOI2017"})
 	if !errors.As(err, &ve) || ve.Field != "session_id" {
 		t.Fatalf("got %v, want *ValidationError{Field: session_id}", err)
+	}
+	// SessionID must be a UUID (the spec declares format: uuid).
+	_, err = c.PlaceDetails(context.Background(), &barikoi.PlaceDetailsRequest{PlaceCode: "BKOI2017", SessionID: "not-a-uuid"})
+	if !errors.As(err, &ve) || ve.Field != "session_id" {
+		t.Fatalf("non-UUID session: got %v, want *ValidationError{Field: session_id}", err)
 	}
 }
 
@@ -132,27 +138,25 @@ func TestNearbySuccess(t *testing.T) {
 		"status": 200
 	}`
 	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		// Radius and limit default to 0.5 km and 10 when zero-valued.
 		if got, want := r.URL.Path, "/v2/api/search/nearby/0.5/10"; got != want {
-			t.Errorf("path = %q, want %q (radius/limit as path parameters)", got, want)
+			t.Errorf("path = %q, want %q (defaults as path parameters)", got, want)
 		}
-		q := r.URL.Query()
-		if got := q.Get("latitude"); got != "23.871887192063" {
+		if got := queryParam(r, "latitude"); got != "23.871887192063" {
 			t.Errorf("latitude = %q, want %q", got, "23.871887192063")
 		}
-		if got := q.Get("longitude"); got != "90.383051633835" {
+		if got := queryParam(r, "longitude"); got != "90.383051633835" {
 			t.Errorf("longitude = %q, want %q", got, "90.383051633835")
 		}
-		if got := q.Get("api_key"); got != "test-key" {
+		if got := queryParam(r, "api_key"); got != "test-key" {
 			t.Errorf("api_key = %q, want %q", got, "test-key")
 		}
 		writeJSON(t, w, http.StatusOK, respBody)
 	})
 
-	resp, err := c.Nearby(context.Background(), &NearbyRequest{
+	resp, err := c.Nearby(context.Background(), &barikoi.NearbyRequest{
 		Latitude:  23.871887192063,
 		Longitude: 90.383051633835,
-		Radius:    0.5,
-		Limit:     10,
 	})
 	if err != nil {
 		t.Fatalf("Nearby: %v", err)
@@ -181,21 +185,20 @@ func TestNearbySuccess(t *testing.T) {
 }
 
 func TestNearbyValidation(t *testing.T) {
-	c, err := NewClient("k")
+	c, err := barikoi.NewClient("k")
 	if err != nil {
 		t.Fatal(err)
 	}
-	var ve *ValidationError
+	var ve *barikoi.ValidationError
 	cases := []struct {
 		name      string
-		req       *NearbyRequest
+		req       *barikoi.NearbyRequest
 		wantField string
 	}{
-		{"radius too small", &NearbyRequest{Latitude: 23.8, Longitude: 90.3, Radius: 0.05, Limit: 10}, "radius"},
-		{"radius too large", &NearbyRequest{Latitude: 23.8, Longitude: 90.3, Radius: 101, Limit: 10}, "radius"},
-		{"limit too small", &NearbyRequest{Latitude: 23.8, Longitude: 90.3, Radius: 1, Limit: 0}, "limit"},
-		{"limit too large", &NearbyRequest{Latitude: 23.8, Longitude: 90.3, Radius: 1, Limit: 101}, "limit"},
-		{"bad latitude", &NearbyRequest{Latitude: 95, Longitude: 90.3, Radius: 1, Limit: 10}, ""},
+		{"radius too small", &barikoi.NearbyRequest{Latitude: 23.8, Longitude: 90.3, Radius: 0.05, Limit: 10}, "radius"},
+		{"radius too large", &barikoi.NearbyRequest{Latitude: 23.8, Longitude: 90.3, Radius: 101, Limit: 10}, "radius"},
+		{"limit too large", &barikoi.NearbyRequest{Latitude: 23.8, Longitude: 90.3, Radius: 1, Limit: 101}, "limit"},
+		{"bad latitude", &barikoi.NearbyRequest{Latitude: 95, Longitude: 90.3, Radius: 1, Limit: 10}, ""},
 	}
 	for _, tc := range cases {
 		_, err := c.Nearby(context.Background(), tc.req)
@@ -204,7 +207,7 @@ func TestNearbyValidation(t *testing.T) {
 			continue
 		}
 		if tc.wantField == "" {
-			if !errors.Is(err, ErrInvalidLatitude) {
+			if !errors.Is(err, barikoi.ErrInvalidLatitude) {
 				t.Errorf("%s: got %v, want ErrInvalidLatitude", tc.name, err)
 			}
 			continue
@@ -232,7 +235,6 @@ func TestCheckNearbySuccess(t *testing.T) {
 		if got, want := r.URL.Path, "/v2/api/check/nearby"; got != want {
 			t.Errorf("path = %q, want %q", got, want)
 		}
-		q := r.URL.Query()
 		for param, want := range map[string]string{
 			"api_key":               "test-key",
 			"current_latitude":      "23.762412943322726",
@@ -241,14 +243,14 @@ func TestCheckNearbySuccess(t *testing.T) {
 			"destination_longitude": "90.37852866512583",
 			"radius":                "50",
 		} {
-			if got := q.Get(param); got != want {
+			if got := queryParam(r, param); got != want {
 				t.Errorf("query %s = %q, want %q", param, got, want)
 			}
 		}
 		writeJSON(t, w, http.StatusOK, respBody)
 	})
 
-	resp, err := c.CheckNearby(context.Background(), &CheckNearbyRequest{
+	resp, err := c.CheckNearby(context.Background(), &barikoi.CheckNearbyRequest{
 		CurrentLatitude:      23.762412943322726,
 		CurrentLongitude:     90.37864864706823,
 		DestinationLatitude:  23.76245538673939,
@@ -270,7 +272,7 @@ func TestCheckNearbyOutsideRadius(t *testing.T) {
 	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(t, w, http.StatusOK, `{"message": "Point not inside polygon", "status": 200, "data": null}`)
 	})
-	resp, err := c.CheckNearby(context.Background(), &CheckNearbyRequest{
+	resp, err := c.CheckNearby(context.Background(), &barikoi.CheckNearbyRequest{
 		CurrentLatitude:      23.76,
 		CurrentLongitude:     90.37,
 		DestinationLatitude:  23.77,
@@ -286,12 +288,12 @@ func TestCheckNearbyOutsideRadius(t *testing.T) {
 }
 
 func TestCheckNearbyValidation(t *testing.T) {
-	c, err := NewClient("k")
+	c, err := barikoi.NewClient("k")
 	if err != nil {
 		t.Fatal(err)
 	}
-	var ve *ValidationError
-	_, err = c.CheckNearby(context.Background(), &CheckNearbyRequest{
+	var ve *barikoi.ValidationError
+	_, err = c.CheckNearby(context.Background(), &barikoi.CheckNearbyRequest{
 		CurrentLatitude:      23.7,
 		CurrentLongitude:     90.3,
 		DestinationLatitude:  23.8,
@@ -301,7 +303,7 @@ func TestCheckNearbyValidation(t *testing.T) {
 	if !errors.As(err, &ve) || ve.Field != "radius" {
 		t.Fatalf("radius 5: got %v, want *ValidationError{Field: radius}", err)
 	}
-	_, err = c.CheckNearby(context.Background(), &CheckNearbyRequest{
+	_, err = c.CheckNearby(context.Background(), &barikoi.CheckNearbyRequest{
 		CurrentLatitude:      23.7,
 		CurrentLongitude:     90.3,
 		DestinationLatitude:  23.8,
@@ -311,14 +313,14 @@ func TestCheckNearbyValidation(t *testing.T) {
 	if !errors.As(err, &ve) || ve.Field != "radius" {
 		t.Fatalf("radius 1001: got %v, want *ValidationError{Field: radius}", err)
 	}
-	_, err = c.CheckNearby(context.Background(), &CheckNearbyRequest{
+	_, err = c.CheckNearby(context.Background(), &barikoi.CheckNearbyRequest{
 		CurrentLatitude:      23.7,
 		CurrentLongitude:     90.3,
 		DestinationLatitude:  95,
 		DestinationLongitude: 90.4,
 		Radius:               50,
 	})
-	if !errors.Is(err, ErrInvalidLatitude) {
+	if !errors.Is(err, barikoi.ErrInvalidLatitude) {
 		t.Errorf("bad destination latitude: got %v, want ErrInvalidLatitude", err)
 	}
 }

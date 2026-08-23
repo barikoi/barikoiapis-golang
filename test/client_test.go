@@ -1,4 +1,4 @@
-package client
+package barikoi_test
 
 import (
 	"context"
@@ -8,88 +8,106 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	barikoi "github.com/barikoi/barikoiapis-golang"
 )
 
-// testClient returns a Client pointed at a throwaway test server.
-func testClient(t *testing.T, h http.HandlerFunc) *Client {
-	t.Helper()
-	srv := httptest.NewServer(h)
-	t.Cleanup(srv.Close)
-	c, err := NewClient("test-key", WithBaseURL(srv.URL))
-	if err != nil {
-		t.Fatalf("NewClient: %v", err)
-	}
-	return c
-}
-
-func writeJSON(t *testing.T, w http.ResponseWriter, status int, body string) {
-	t.Helper()
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	if _, err := w.Write([]byte(body)); err != nil {
-		t.Errorf("writing response: %v", err)
-	}
-}
-
 func TestNewClientMissingAPIKey(t *testing.T) {
-	if _, err := NewClient(""); !errors.Is(err, ErrMissingAPIKey) {
+	if _, err := barikoi.NewClient(""); !errors.Is(err, barikoi.ErrMissingAPIKey) {
 		t.Fatalf("got %v, want ErrMissingAPIKey", err)
 	}
 }
 
 func TestNewClientDefaults(t *testing.T) {
-	c, err := NewClient("k")
+	c, err := barikoi.NewClient("k")
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
 	if got := c.GetAPIKey(); got != "k" {
 		t.Errorf("GetAPIKey() = %q, want %q", got, "k")
 	}
-	if got := c.baseURL.String(); got != DefaultBaseURL {
-		t.Errorf("baseURL = %q, want %q", got, DefaultBaseURL)
-	}
-	if got := c.httpClient.Timeout; got != DefaultTimeout {
-		t.Errorf("timeout = %v, want %v", got, DefaultTimeout)
+	if got := c.GetTimeout(); got != barikoi.DefaultTimeout {
+		t.Errorf("GetTimeout() = %v, want %v", got, barikoi.DefaultTimeout)
 	}
 }
 
-func TestClientOptions(t *testing.T) {
-	hc := &http.Client{}
-	c, err := NewClient("k",
-		WithBaseURL("http://example.com/prefix/"),
-		WithHTTPClient(hc),
-		WithTimeout(5*time.Second),
-	)
+func TestBaseURLTrailingSlashStripped(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got, want := r.URL.Path, "/prefix/v2/api/search/autocomplete/place"; got != want {
+			t.Errorf("path = %q, want %q (trailing slash stripped, path joined)", got, want)
+		}
+		writeJSON(t, w, http.StatusOK, `{"places": [], "status": 200}`)
+	}))
+	defer srv.Close()
+
+	c, err := barikoi.NewClient("test-key",
+		barikoi.WithBaseURL(srv.URL+"/prefix/"),
+		barikoi.WithAllowInsecure())
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
-	if got := c.baseURL.String(); got != "http://example.com/prefix" {
-		t.Errorf("baseURL = %q, want %q", got, "http://example.com/prefix")
+	if _, err := c.Autocomplete(context.Background(), &barikoi.AutocompleteRequest{Q: "x"}); err != nil {
+		t.Fatalf("Autocomplete: %v", err)
 	}
-	if c.httpClient != hc {
-		t.Error("httpClient was not the custom client")
-	}
-	if got := c.httpClient.Timeout; got != 5*time.Second {
-		t.Errorf("timeout = %v, want 5s", got)
-	}
+}
 
-	if _, err := NewClient("k", WithBaseURL("://not-a-url")); err == nil {
-		t.Error("invalid base URL accepted, want error")
+func TestBaseURLValidation(t *testing.T) {
+	cases := []struct {
+		name    string
+		url     string
+		insec   bool
+		wantErr bool
+	}{
+		{"https ok", "https://barikoi.example", false, false},
+		{"trailing slash stripped", "https://barikoi.example/", false, false},
+		{"http rejected", "http://localhost:3000", false, true},
+		{"http allowed with option", "http://localhost:3000", true, false},
+		{"garbage rejected", "not-a-url", false, true},
+		{"unparseable rejected", "://not-a-url", false, true},
+		{"ftp rejected", "ftp://example.com", false, true},
+	}
+	for _, tc := range cases {
+		var opts []barikoi.Option
+		if tc.insec {
+			opts = append(opts, barikoi.WithAllowInsecure())
+		}
+		_, err := barikoi.NewClient("k", append(opts, barikoi.WithBaseURL(tc.url))...)
+		if gotErr := err != nil; gotErr != tc.wantErr {
+			t.Errorf("%s: got err %v, wantErr %v", tc.name, err, tc.wantErr)
+		}
+	}
+}
+
+func TestCustomHTTPClientUsed(t *testing.T) {
+	c := offlineClient(t, http.StatusOK, `{"places": [], "status": 200}`)
+	if _, err := c.Autocomplete(context.Background(), &barikoi.AutocompleteRequest{Q: "x"}); err != nil {
+		t.Fatalf("Autocomplete: %v", err)
 	}
 }
 
 func TestSetAPIKeyRotation(t *testing.T) {
 	var gotKey string
 	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
-		gotKey = r.URL.Query().Get("api_key")
+		gotKey = queryParam(r, "api_key")
 		writeJSON(t, w, http.StatusOK, `{"places": [], "status": 200}`)
 	})
 	c.SetAPIKey("rotated-key")
-	if _, err := c.Autocomplete(context.Background(), &AutocompleteRequest{Q: "x"}); err != nil {
+	if _, err := c.Autocomplete(context.Background(), &barikoi.AutocompleteRequest{Q: "x"}); err != nil {
 		t.Fatalf("Autocomplete: %v", err)
 	}
 	if gotKey != "rotated-key" {
 		t.Errorf("api_key = %q, want %q", gotKey, "rotated-key")
+	}
+}
+
+func TestTimeoutManagement(t *testing.T) {
+	c, err := barikoi.NewClient("k")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.SetTimeout(10 * time.Second)
+	if got := c.GetTimeout(); got != 10*time.Second {
+		t.Errorf("GetTimeout() = %v, want 10s", got)
 	}
 }
 
@@ -112,11 +130,11 @@ func TestBarikoiErrorMapping(t *testing.T) {
 		c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
 			writeJSON(t, w, tc.status, tc.body)
 		})
-		_, err := c.Autocomplete(context.Background(), &AutocompleteRequest{Q: "x"})
+		_, err := c.Autocomplete(context.Background(), &barikoi.AutocompleteRequest{Q: "x"})
 		if err == nil {
 			t.Fatalf("status %d: want error, got nil", tc.status)
 		}
-		var be *BarikoiError
+		var be *barikoi.BarikoiError
 		if !errors.As(err, &be) {
 			t.Fatalf("status %d: got %T, want *BarikoiError", tc.status, err)
 		}
@@ -149,11 +167,11 @@ func TestTimeoutError(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
-	_, err := c.Autocomplete(ctx, &AutocompleteRequest{Q: "x"})
+	_, err := c.Autocomplete(ctx, &barikoi.AutocompleteRequest{Q: "x"})
 	if err == nil {
 		t.Fatal("want error, got nil")
 	}
-	var te *TimeoutError
+	var te *barikoi.TimeoutError
 	if !errors.As(err, &te) {
 		t.Fatalf("got %T (%v), want *TimeoutError", err, err)
 	}
@@ -162,20 +180,33 @@ func TestTimeoutError(t *testing.T) {
 	}
 }
 
+func TestClientLevelTimeoutError(t *testing.T) {
+	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		writeJSON(t, w, http.StatusOK, `{"places": [], "status": 200}`)
+	})
+	c.SetTimeout(50 * time.Millisecond)
+
+	_, err := c.Autocomplete(context.Background(), &barikoi.AutocompleteRequest{Q: "x"})
+	var te *barikoi.TimeoutError
+	if !errors.As(err, &te) {
+		t.Fatalf("got %T (%v), want *TimeoutError", err, err)
+	}
+}
+
 func TestAPIKeySentAsQueryParameterOnPost(t *testing.T) {
 	var gotKey string
 	var gotBody map[string]any
 	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
-		gotKey = r.URL.Query().Get("api_key")
+		gotKey = queryParam(r, "api_key")
 		if err := json.NewDecoder(r.Body).Decode(&gotBody); err != nil {
 			t.Errorf("decoding body: %v", err)
 		}
-		writeJSON(t, w, http.StatusOK, `{"trip": {}, "id": "t"}`)
+		writeJSON(t, w, http.StatusOK, `{"paths": [], "info": {"took": 1}}`)
 	})
-	_, err := c.CalculateRoute(context.Background(), &CalculateRouteRequest{
-		Start:       Coordinate{Latitude: 23.79, Longitude: 90.36},
-		Destination: Coordinate{Latitude: 23.78, Longitude: 90.37},
-		Type:        "vh",
+	_, err := c.CalculateRoute(context.Background(), &barikoi.CalculateRouteRequest{
+		Start:       barikoi.Coordinate{Latitude: 23.79, Longitude: 90.36},
+		Destination: barikoi.Coordinate{Latitude: 23.78, Longitude: 90.37},
 	})
 	if err != nil {
 		t.Fatalf("CalculateRoute: %v", err)

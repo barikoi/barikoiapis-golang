@@ -1,0 +1,13 @@
+# Compiled binaries and test artifacts
+*.exe
+*.test
+*.out
+
+# Environment
+.env
+
+# OS
+.DS_Store
+
+# Coverage artifacts
+coverage.out
