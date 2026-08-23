@@ -9,6 +9,18 @@ Every change documents itself under a proper `major.minor.patch` heading
 when it lands; `scripts/release.sh` releases whatever version the
 changelog top section names.
 
+## [1.0.4] - 2026-08-23
+
+### Added
+
+- Runnable godoc examples (`example_test.go`) for the package overview,
+  `Client.Geocode`, and `Client.Autocomplete`, surfaced on pkg.go.dev.
+
+### Changed
+
+- Release script now warms the Go module proxy after tagging, so pkg.go.dev
+  picks up the new tagged/stable version immediately.
+
 ## [1.0.3] - 2026-08-23
 
 ### Changed
