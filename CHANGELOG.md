@@ -5,7 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+Every change documents itself under a proper `major.minor.patch` heading
+when it lands; `scripts/release.sh` releases whatever version the
+changelog top section names.
+
+## [1.0.2] - 2026-08-23
+
+### Changed
+
+- Release process: changes are now documented under a proper version
+  heading in `CHANGELOG.md` when they land (no `[Unreleased]` staging
+  section). `scripts/release.sh` reads the top version heading from the
+  changelog, updates `dev`, merges `dev` into `main` with an explicit
+  merge commit, tags, and opens the GitHub release from the changelog
+  notes.
 
 ## [1.0.1] - 2026-08-23
 

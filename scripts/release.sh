@@ -1,69 +1,63 @@
 #!/usr/bin/env sh
 # Release helper for the Barikoi Go SDK.
 #
-# Enforces strict major.minor.patch versioning, keeps CHANGELOG.md as the
-# single release log, tags, pushes dev -> main, and opens the GitHub
-# release with notes extracted from the changelog.
+# Changelog-first: changes are documented under a proper `## [X.Y.Z]`
+# heading in CHANGELOG.md when they land. This script releases whatever
+# strict major.minor.patch version the changelog's top section names.
 #
-# Usage: ./scripts/release.sh patch|minor|major
+# Usage: ./scripts/release.sh
 #
 # Flow:
 #   1. working tree must be clean, on branch dev
-#   2. `make check` must pass (gofmt + go vet + unit tests)
-#   3. the [Unreleased] changelog section becomes the new version section
-#   4. tag vX.Y.Z, push dev and dev:main, `gh release create`
+#   2. CHANGELOG.md top heading must be ## [X.Y.Z] (strict semver core),
+#      non-empty, and newer than the latest tag
+#   3. `make check` must pass (gofmt + go vet + unit tests)
+#   4. update dev, merge dev into main (--no-ff merge commit)
+#   5. tag vX.Y.Z on main, push, `gh release create` from changelog notes
 
 set -eu
 
 cd "$(dirname "$0")/.."
 
-BUMP="${1:-}"
-case "$BUMP" in
-  patch | minor | major) ;;
-  *) echo "usage: ./scripts/release.sh patch|minor|major" >&2; exit 1 ;;
-esac
-
 [ "$(git branch --show-current)" = "dev" ] || { echo "not on branch dev" >&2; exit 1; }
 git diff --quiet && git diff --cached --quiet || { echo "working tree not clean" >&2; exit 1; }
 
+NEXT=$(sed -n 's/^## \[\([^]]*\)\].*/\1/p' CHANGELOG.md | head -1)
+case "$NEXT" in
+  [0-9]*.[0-9]*.[0-9]*) ;;
+  *)
+    echo "CHANGELOG.md top section is '## [$NEXT]' — document the change under a proper major.minor.patch heading first" >&2
+    exit 1
+    ;;
+esac
+
 CURRENT=$(git tag -l 'v*' | sed 's/^v//' | sort -V | tail -1)
 [ -n "$CURRENT" ] || { echo "no tags found" >&2; exit 1; }
-case "$CURRENT" in
-  [0-9]*.[0-9]*.[0-9]*) ;;
-  *) echo "latest tag v$CURRENT is not major.minor.patch" >&2; exit 1 ;;
-esac
-
-IFS=. read -r MAJOR MINOR PATCH <<EOF
-$CURRENT
-EOF
-case "$BUMP" in
-  major) NEXT="$((MAJOR + 1)).0.0" ;;
-  minor) NEXT="$MAJOR.$((MINOR + 1)).0" ;;
-  patch) NEXT="$MAJOR.$MINOR.$((PATCH + 1))" ;;
-esac
-
-grep -q '^## \[Unreleased\]' CHANGELOG.md || {
-  echo "CHANGELOG.md has no [Unreleased] section; document the release there first" >&2
+if [ "$(printf '%s\n%s\n' "$CURRENT" "$NEXT" | sort -V | tail -1)" != "$NEXT" ] ||
+  [ "$CURRENT" = "$NEXT" ]; then
+  echo "changelog top version v$NEXT must be newer than latest tag v$CURRENT" >&2
   exit 1
-}
-[ -n "$(awk '/^## \[Unreleased\]/{f=1;next} /^## /{f=0} f && NF' CHANGELOG.md)" ] || {
-  echo "CHANGELOG.md [Unreleased] section is empty" >&2
-  exit 1
-}
+fi
 
-echo "==> v$CURRENT -> v$NEXT ($BUMP)"
+[ -n "$(awk -v v="$NEXT" '
+  index($0, "## [" v "]") == 1 { found = 1; next }
+  /^## / { found = 0 }
+  found && NF
+' CHANGELOG.md)" ] || { echo "CHANGELOG.md section [$NEXT] is empty" >&2; exit 1; }
+
+echo "==> releasing v$NEXT (latest tag v$CURRENT)"
 make check
 
-awk -v ver="$NEXT" -v date="$(date +%F)" '
-  !done && $0 == "## [Unreleased]" {
-    print; print ""; print "## [" ver "] - " date; done = 1; next
-  }
-  { print }
-' CHANGELOG.md > CHANGELOG.md.tmp && mv CHANGELOG.md.tmp CHANGELOG.md
+echo "==> update dev"
+git push -q origin dev
 
-git add CHANGELOG.md
-git commit -q -m "release: v$NEXT"
-git push -q origin dev dev:main
+echo "==> merge dev into main"
+git checkout -q main
+git pull -q origin main
+git merge --no-ff dev -m "release: merge dev into main (v$NEXT)"
+git push -q origin main
+
+echo "==> tag and release"
 git tag "v$NEXT"
 git push -q origin "v$NEXT"
 
@@ -74,4 +68,5 @@ NOTES=$(awk -v v="$NEXT" '
 ' CHANGELOG.md)
 gh release create "v$NEXT" --title "v$NEXT" --notes "$NOTES"
 
+git checkout -q dev
 echo "==> released v$NEXT"
