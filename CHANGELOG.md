@@ -9,6 +9,14 @@ Every change documents itself under a proper `major.minor.patch` heading
 when it lands; `scripts/release.sh` releases whatever version the
 changelog top section names.
 
+## [1.0.5] - 2026-08-23
+
+### Changed
+
+- CI: CodeQL moved to its own workflow (`codeql.yml`), enabling a dedicated
+  README badge (per-job badges don't exist on GitHub Actions).
+- README: added the CodeQL badge.
+
 ## [1.0.4] - 2026-08-23
 
 ### Added

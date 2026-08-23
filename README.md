@@ -3,6 +3,7 @@
 [![Go Reference](https://pkg.go.dev/badge/github.com/barikoi/barikoiapis-golang.svg)](https://pkg.go.dev/github.com/barikoi/barikoiapis-golang)
 [![Release](https://img.shields.io/github/release/barikoi/barikoiapis-golang.svg?style=flat-square)](https://github.com/barikoi/barikoiapis-golang/releases/latest)
 [![CI](https://github.com/barikoi/barikoiapis-golang/actions/workflows/ci.yml/badge.svg)](https://github.com/barikoi/barikoiapis-golang/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/barikoi/barikoiapis-golang/actions/workflows/codeql.yml/badge.svg)](https://github.com/barikoi/barikoiapis-golang/actions/workflows/codeql.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Fbarikoi%2Fbarikoiapis-golang%2Fbadges%2Fcoverage.json)](https://github.com/barikoi/barikoiapis-golang/actions/workflows/ci.yml)
 [![Go Report Card](https://goreportcard.com/badge/github.com/barikoi/barikoiapis-golang?style=flat-square)](https://goreportcard.com/report/github.com/barikoi/barikoiapis-golang)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/barikoi/barikoiapis-golang?style=flat-square)](https://go.dev/)

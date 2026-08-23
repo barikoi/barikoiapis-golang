@@ -63,7 +63,7 @@ git push -q origin "v$NEXT"
 
 # Warm the Go module proxy so pkg.go.dev shows the new tagged/stable version
 # promptly (the proxy only ingests a tag when its zip is first fetched).
-curl -sf "https://proxy.golang.org/github.com/barikoi/barikoiapis-golang/@v/v$NEXT.zip" -o /dev/null \
+curl -sf --max-time 10 "https://proxy.golang.org/github.com/barikoi/barikoiapis-golang/@v/v$NEXT.zip" -o /dev/null \
 	|| echo "warning: could not warm proxy.golang.org for v$NEXT" >&2
 
 NOTES=$(awk -v v="$NEXT" '
