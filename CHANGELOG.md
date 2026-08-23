@@ -9,6 +9,14 @@ Every change documents itself under a proper `major.minor.patch` heading
 when it lands; `scripts/release.sh` releases whatever version the
 changelog top section names.
 
+## [1.0.3] - 2026-08-23
+
+### Changed
+
+- CI: dropped the redundant `github.event_name == 'push'` check from the
+  coverage-badge publish condition; the `refs/heads/main` ref check alone
+  is conclusive given the workflow's triggers.
+
 ## [1.0.2] - 2026-08-23
 
 ### Changed

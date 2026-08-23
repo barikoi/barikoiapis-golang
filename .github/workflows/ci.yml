@@ -19,7 +19,7 @@ jobs:
       - run: make lint
       - run: make cover
       - name: Publish coverage badge
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: github.ref == 'refs/heads/main'
         run: |
           pct=$(go tool cover -func=coverage.out | awk '/^total:/ {sub(/%$/, "", $3); print $3}')
           pct_int=${pct%%.*}
