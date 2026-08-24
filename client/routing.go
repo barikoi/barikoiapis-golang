@@ -141,7 +141,16 @@ func (g *RouteGeometry) UnmarshalJSON(data []byte) error {
 		g.GeoJSON = nil
 		return nil
 	}
-	return json.Unmarshal(data, &g.GeoJSON)
+	var geo GeoJSONLineString
+	if err := json.Unmarshal(data, &geo); err == nil && geo.Type != "" {
+		g.GeoJSON = &geo
+		g.Polyline = ""
+		return nil
+	}
+	// Unknown shape: keep the raw JSON so nothing is lost.
+	g.Polyline = string(data)
+	g.GeoJSON = nil
+	return nil
 }
 
 // RoutePath is one route path (GraphHopper format): distance in meters, time
