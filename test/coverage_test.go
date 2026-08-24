@@ -180,6 +180,60 @@ func TestTransportErrorPassthrough(t *testing.T) {
 	}
 }
 
+// TestRemainingMethodTransportErrors covers the do() error-return branch
+// of every method wrapper that had no failing-request test of its own.
+func TestRemainingMethodTransportErrors(t *testing.T) {
+	boom := errors.New("connection refused")
+	newClient := func(t *testing.T) *barikoi.Client {
+		t.Helper()
+		rt := roundTripFunc(func(r *http.Request) (*http.Response, error) { return nil, boom })
+		c, err := barikoi.NewClient("k", barikoi.WithAllowInsecure(),
+			barikoi.WithBaseURL("http://127.0.0.1:1"),
+			barikoi.WithHTTPClient(&http.Client{Transport: rt}))
+		if err != nil {
+			t.Fatalf("NewClient: %v", err)
+		}
+		return c
+	}
+	ctx := context.Background()
+	pts := []barikoi.OptimizeRoutePoint{{ID: 1, Point: "23.8,90.4"}}
+	calls := []struct {
+		name string
+		call func() error
+	}{
+		{"ReverseGeocode", func() error {
+			_, e := newClient(t).ReverseGeocode(ctx, &barikoi.ReverseGeocodeRequest{Latitude: 23.8, Longitude: 90.4})
+			return e
+		}},
+		{"PlaceDetails", func() error {
+			_, e := newClient(t).PlaceDetails(ctx, &barikoi.PlaceDetailsRequest{PlaceCode: "PXW", SessionID: "eec76e23-481f-4060-8959-df5db6219126"})
+			return e
+		}},
+		{"Nearby", func() error {
+			_, e := newClient(t).Nearby(ctx, &barikoi.NearbyRequest{Latitude: 23.8, Longitude: 90.4})
+			return e
+		}},
+		{"CheckNearby", func() error {
+			_, e := newClient(t).CheckNearby(ctx, &barikoi.CheckNearbyRequest{Radius: 100})
+			return e
+		}},
+		{"RouteOverview", func() error {
+			_, e := newClient(t).RouteOverview(ctx, &barikoi.RouteOverviewRequest{Coordinates: "90.3,23.8;90.4,23.9"})
+			return e
+		}},
+		{"CalculateRoute", func() error { _, e := newClient(t).CalculateRoute(ctx, &barikoi.CalculateRouteRequest{}); return e }},
+		{"OptimizeRoute", func() error {
+			_, e := newClient(t).OptimizeRoute(ctx, &barikoi.OptimizeRouteRequest{Source: "23.8,90.4", Destination: "23.7,90.3", GeoPoints: pts})
+			return e
+		}},
+	}
+	for _, tc := range calls {
+		if err := tc.call(); !errors.Is(err, boom) {
+			t.Errorf("%s: error = %v, want the original transport error", tc.name, err)
+		}
+	}
+}
+
 // TestFlexBadTypes covers the custom unmarshalers' rejection branches:
 // neither valid JSON numbers nor numeric strings.
 func TestFlexBadTypes(t *testing.T) {

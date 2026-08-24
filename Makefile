@@ -38,14 +38,14 @@ build: ## Compile all packages
 	$(GO) build ./...
 
 test: ## Run unit tests (httptest stubs; no API key or network needed)
-	$(GO) test -race -coverpkg=$(COVERPKGS) -cover ./test/
+	$(GO) test -race -coverpkg=$(COVERPKGS) -covermode=atomic -cover ./test/ ./client/
 
 test-integration: ## Run live API tests; BARIKOI_API_KEY from env or .env
 	@$(load_env); \
 	$(GO) test -race -v -run Integration ./test/
 
 cover: ## Unit tests with a coverage report (coverage.out)
-	$(GO) test -race -coverpkg=$(COVERPKGS) -coverprofile=coverage.out ./test/
+	$(GO) test -race -coverpkg=$(COVERPKGS) -covermode=atomic -coverprofile=coverage.out ./test/ ./client/
 	$(GO) tool cover -func=coverage.out | tail -1
 
 fmt: ## Format all Go sources
