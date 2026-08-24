@@ -36,12 +36,12 @@ type RouteLeg struct {
 
 // Route is a single route between the requested waypoints.
 type Route struct {
-	Geometry   PolylineOrGeoJSON `json:"geometry"`
-	Legs       []RouteLeg        `json:"legs"`
-	Distance   float64           `json:"distance"` // meters
-	Duration   float64           `json:"duration"` // seconds
-	WeightName string            `json:"weight_name"`
-	Weight     float64           `json:"weight"`
+	Geometry   RouteGeometry `json:"geometry"` // Polyline string, or GeoJSON object when geometries=geojson
+	Legs       []RouteLeg    `json:"legs"`
+	Distance   float64       `json:"distance"` // meters
+	Duration   float64       `json:"duration"` // seconds
+	WeightName string        `json:"weight_name"`
+	Weight     float64       `json:"weight"`
 }
 
 // Waypoint is a snapped input point of a route.

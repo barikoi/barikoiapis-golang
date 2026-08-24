@@ -51,7 +51,7 @@ func ExampleClient_Autocomplete() {
 
 	resp, err := c.Autocomplete(context.Background(), &barikoi.AutocompleteRequest{
 		Q:      "gulshan",
-		Bangla: barikoi.BoolPtr(true),
+		Bangla: true,
 	})
 	if err != nil {
 		log.Fatal(err)

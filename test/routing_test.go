@@ -95,8 +95,27 @@ func TestRouteOverviewGeojsonGeometry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RouteOverview: %v", err)
 	}
-	if want := `{"type":"LineString","coordinates":[[90.3,23.8]]}`; string(resp.Routes[0].Geometry) != want {
-		t.Errorf("Geometry = %q, want %q", resp.Routes[0].Geometry, want)
+	if g := resp.Routes[0].Geometry; g.Polyline != "" || g.GeoJSON == nil {
+		t.Errorf("Geometry = %+v, want GeoJSON LineString", g)
+	} else if g.GeoJSON.Type != "LineString" || len(g.GeoJSON.Coordinates) != 1 ||
+		g.GeoJSON.Coordinates[0][0] != 90.3 || g.GeoJSON.Coordinates[0][1] != 23.8 {
+		t.Errorf("Geometry.GeoJSON = %+v, want LineString with [90.3 23.8]", g.GeoJSON)
+	}
+}
+
+func TestRouteOverviewPolylineGeometry(t *testing.T) {
+	c := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(t, w, http.StatusOK, `{"code":"Ok","routes":[{"geometry":"bqCmhpfPdMaDqEqOuEqO","distance":1,"duration":1}],"waypoints":[]}`)
+	})
+	resp, err := c.RouteOverview(context.Background(), &barikoi.RouteOverviewRequest{
+		Coordinates: "90.3,23.8;90.4,23.9",
+	})
+	if err != nil {
+		t.Fatalf("RouteOverview: %v", err)
+	}
+	g := resp.Routes[0].Geometry
+	if g.GeoJSON != nil || g.Polyline != "bqCmhpfPdMaDqEqOuEqO" {
+		t.Errorf("Geometry = %+v, want polyline string", g)
 	}
 }
 

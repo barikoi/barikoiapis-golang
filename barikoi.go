@@ -71,10 +71,6 @@ func WithHTTPClient(hc *http.Client) Option { return client.WithHTTPClient(hc) }
 // for local development and testing.
 func WithAllowInsecure() Option { return client.WithAllowInsecure() }
 
-// BoolPtr returns a pointer to v, for optional boolean fields such as
-// AutocompleteRequest.Bangla.
-func BoolPtr(v bool) *bool { return client.BoolPtr(v) }
-
 // Errors, distinguished with errors.As.
 type (
 	// BarikoiError is returned for any non-2xx HTTP response from the API.
@@ -101,7 +97,6 @@ type (
 	Coordinate        = client.Coordinate
 	FlexFloat         = client.FlexFloat
 	FlexString        = client.FlexString
-	PolylineOrGeoJSON = client.PolylineOrGeoJSON
 	GeoJSONLineString = client.GeoJSONLineString
 	RouteGeometry     = client.RouteGeometry
 )

@@ -66,6 +66,13 @@ git push -q origin "v$NEXT"
 curl -sf --max-time 10 "https://proxy.golang.org/github.com/barikoi/barikoiapis-golang/@v/v$NEXT.zip" -o /dev/null \
 	|| echo "warning: could not warm proxy.golang.org for v$NEXT" >&2
 
+# Warm the checksum DB, and fetch the pkg.go.dev page for this version so
+# the site re-renders it now instead of serving a stale front-end cache.
+curl -sf --max-time 10 "https://sum.golang.org/lookup/github.com/barikoi/barikoiapis-golang@v$NEXT" -o /dev/null \
+	|| echo "warning: could not warm sum.golang.org for v$NEXT" >&2
+curl -sf --max-time 10 "https://pkg.go.dev/github.com/barikoi/barikoiapis-golang@v$NEXT" -o /dev/null \
+	|| echo "note: could not reach pkg.go.dev for v$NEXT (it will index on its own)" >&2
+
 NOTES=$(awk -v v="$NEXT" '
   index($0, "## [" v "]") == 1 { found = 1; next }
   /^## / { found = 0 }

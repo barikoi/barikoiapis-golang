@@ -50,6 +50,4 @@ func TestFacadeEndToEnd(t *testing.T) {
 	if _, err := barikoi.NewClient(""); !errors.Is(err, barikoi.ErrMissingAPIKey) {
 		t.Errorf("got %v, want ErrMissingAPIKey", err)
 	}
-
-	_ = barikoi.BoolPtr(false) // exported helper
 }

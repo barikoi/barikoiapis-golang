@@ -120,7 +120,7 @@ Search for places with autocomplete suggestions. Returns matching places with ad
 ```go
 result, err := c.Autocomplete(ctx, &barikoi.AutocompleteRequest{
 	Q:      "Dhaka",
-	Bangla: barikoi.BoolPtr(false), // omit Bangla fields (default: true)
+	Bangla: false, // no Bangla fields in the response
 })
 places := result.Places
 ```
@@ -129,10 +129,11 @@ places := result.Places
 <summary>Type Definitions</summary>
 
 ```go
-// Q is required. Bangla defaults to true when nil, matching the TypeScript SDK.
+// Q is required. Bangla is sent as-is on every request; set it to true to
+// include Bangla fields (the TypeScript SDK defaults this to true).
 type AutocompleteRequest struct {
 	Q      string
-	Bangla *bool
+	Bangla bool
 }
 
 type AutocompletePlace struct {
@@ -292,7 +293,7 @@ type NearbyResponse struct {
 
 Validate and format addresses with completeness status and confidence score. Returns standardized address format. Use for checkout validation, delivery verification, and CRM data cleaning.
 
-**Note:** Uses 2 API calls internally — one Rupantor request consumes two Geocode API credits.
+**Note:** Uses 2 API calls internally — one Rupantor request consumes two Geocoding API credits.
 
 ```go
 result, err := c.Geocode(ctx, &barikoi.GeocodeRequest{
@@ -475,7 +476,7 @@ type RouteOverviewResponse struct {
 }
 
 type Route struct {
-	Geometry   PolylineOrGeoJSON `json:"geometry"` // string, or raw GeoJSON when geometries=geojson
+	Geometry   RouteGeometry     `json:"geometry"` // Polyline string, or GeoJSON object when geometries=geojson
 	Legs       []RouteLeg        `json:"legs"`
 	Distance   float64           `json:"distance"` // meters
 	Duration   float64           `json:"duration"` // seconds
