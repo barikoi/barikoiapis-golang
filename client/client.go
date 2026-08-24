@@ -286,17 +286,3 @@ func (s *FlexString) UnmarshalJSON(data []byte) error {
 	*s = FlexString(strconv.FormatFloat(n, 'f', -1, 64))
 	return nil
 }
-
-// PolylineOrGeoJSON holds a route geometry: an encoded polyline string, or
-// the raw JSON geometry when geometries=geojson was requested.
-type PolylineOrGeoJSON string
-
-func (g *PolylineOrGeoJSON) UnmarshalJSON(data []byte) error {
-	var s string
-	if err := json.Unmarshal(data, &s); err == nil {
-		*g = PolylineOrGeoJSON(s)
-		return nil
-	}
-	*g = PolylineOrGeoJSON(data)
-	return nil
-}

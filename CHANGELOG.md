@@ -9,6 +9,39 @@ Every change documents itself under a proper `major.minor.patch` heading
 when it lands; `scripts/release.sh` releases whatever version the
 changelog top section names.
 
+## [1.0.6] - 2026-08-23
+
+### Changed
+
+- `Route.Geometry` (RouteOverview) is now the shared `RouteGeometry` type
+  (`Polyline` string / `GeoJSON *GeoJSONLineString`) instead of the raw
+  `PolylineOrGeoJSON` string blob, matching how `CalculateRoute` and
+  `OptimizeRoute` already expose geometries. `PolylineOrGeoJSON` has been
+  removed — one geometry type for all routing endpoints.
+- `AutocompleteRequest.Bangla` is now a plain `bool` instead of `*bool`,
+  matching every other request struct in the SDK. `Bangla: true` now works
+  directly — no `barikoi.BoolPtr` needed. The `BoolPtr` helper has been
+  removed from the public API. The flag is sent as-is on every request, so
+  users wanting Bangla fields must set `Bangla: true` explicitly (the
+  TypeScript SDK defaults it to `true`, which a Go zero-value `bool` cannot
+  express).
+
+### Added
+
+- Test coverage of the hand-written SDK is now 99.7% (was 92.4%),
+  including every transport-error branch, error-code mapping, and
+  FlexFloat/FlexString rejection path, plus an internal test
+  (`client/client_internal_test.go`) for the response-decoding path not
+  reachable from the public API.
+
+### Changed
+
+- `make test`/`make cover` now merge coverage from both test binaries with
+  an explicit `-covermode=atomic`, so the reported total reflects the full
+  suite.
+- `scripts/release.sh` also warms the Go checksum database and fetches the
+  pkg.go.dev page for the new tag so the version renders promptly.
+
 ## [1.0.5] - 2026-08-23
 
 ### Changed

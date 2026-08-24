@@ -128,9 +128,9 @@ func TestAutocompleteSuccess(t *testing.T) {
 		if got := queryParam(r, "q"); got != "barikoi" {
 			t.Errorf("q = %q, want %q", got, "barikoi")
 		}
-		// Bangla defaults to true when nil, matching the TypeScript SDK.
+		// Bangla is a plain bool, always sent as-is.
 		if got := queryParam(r, "bangla"); got != "true" {
-			t.Errorf("bangla = %q, want \"true\" (default)", got)
+			t.Errorf("bangla = %q, want \"true\"", got)
 		}
 		if _, ok := r.URL.Query()["city"]; ok {
 			t.Error("city is not a documented API parameter and must not be sent")
@@ -141,7 +141,7 @@ func TestAutocompleteSuccess(t *testing.T) {
 		writeJSON(t, w, http.StatusOK, respBody)
 	})
 
-	resp, err := c.Autocomplete(context.Background(), &barikoi.AutocompleteRequest{Q: "barikoi"})
+	resp, err := c.Autocomplete(context.Background(), &barikoi.AutocompleteRequest{Q: "barikoi", Bangla: true})
 	if err != nil {
 		t.Fatalf("Autocomplete: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestAutocompleteBanglaFalse(t *testing.T) {
 		}
 		writeJSON(t, w, http.StatusOK, `{"places": [], "status": 200}`)
 	})
-	if _, err := c.Autocomplete(context.Background(), &barikoi.AutocompleteRequest{Q: "x", Bangla: barikoi.BoolPtr(false)}); err != nil {
+	if _, err := c.Autocomplete(context.Background(), &barikoi.AutocompleteRequest{Q: "x", Bangla: false}); err != nil {
 		t.Fatalf("Autocomplete: %v", err)
 	}
 }

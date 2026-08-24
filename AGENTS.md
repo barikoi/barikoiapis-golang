@@ -102,4 +102,7 @@ parameter, drop the editor.
   UUID (spec `format: uuid`); invalid UUIDs fail validation client-side.
 - Rupantor geocode returns the address under `"address"` or `"Address"`
   depending on the query; `GeocodedPlace.UnmarshalJSON` handles both.
+- Request structs use plain values only (no pointer fields); `AutocompleteRequest.Bangla`
+  therefore sends `false` when unset — Go's zero value can't express the TS
+  SDK's `bangla: true` default, so users set it explicitly.
 - Commit style: Conventional Commits (`feat:`, `fix:`, `docs:`, ...).

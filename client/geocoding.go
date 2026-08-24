@@ -105,16 +105,12 @@ func (c *Client) ReverseGeocode(ctx context.Context, req *ReverseGeocodeRequest)
 }
 
 // AutocompleteRequest describes a partial place query. Q is required.
-// Bangla defaults to true when nil, matching the TypeScript SDK; set it to
-// false explicitly (BoolPtr(false)) to omit Bangla fields.
+// Bangla is sent as-is on every request; set Bangla: true to include Bangla
+// fields (the TypeScript SDK defaults this to true).
 type AutocompleteRequest struct {
 	Q      string
-	Bangla *bool
+	Bangla bool
 }
-
-// BoolPtr returns a pointer to v, for optional boolean fields such as
-// AutocompleteRequest.Bangla.
-func BoolPtr(v bool) *bool { return &v }
 
 // AutocompletePlace is one suggestion returned by Autocomplete.
 type AutocompletePlace struct {
@@ -146,7 +142,7 @@ func (c *Client) Autocomplete(ctx context.Context, req *AutocompleteRequest) (*A
 	if err := requireString("q", req.Q); err != nil {
 		return nil, err
 	}
-	bangla := req.Bangla == nil || *req.Bangla
+	bangla := req.Bangla
 	params := &gen.AutocompleteParams{
 		ApiKey: c.apiKeyParam(),
 		Q:      req.Q,
@@ -195,7 +191,7 @@ type GeocodedPlace struct {
 	PType             string     `json:"pType"`
 	SubType           string     `json:"subType"`
 	PostCode          FlexString `json:"postCode"`
-	Postcode          FlexString `json:"postcode"`
+	Postcode          FlexString `json:"postcode"` // duplicate spelling; prefer PostCode
 	Longitude         FlexFloat  `json:"longitude"`
 	Latitude          FlexFloat  `json:"latitude"`
 	GeoLocation       []float64  `json:"geo_location"` // [longitude, latitude]
@@ -229,9 +225,9 @@ type GeocodeResponse struct {
 }
 
 // Geocode formats and geocodes an address string to coordinates via the
-// Rupantor Geocoder, POST /v2/api/search/rupantor/geocode. The endpoint only
-// accepts form-encoded bodies. One Rupantor request consumes two Geocode API
-// credits.
+// Rupantor Geocoder, POST /v2/api/search/rupantor/geocode (method name
+// matches the TypeScript SDK). The endpoint only accepts form-encoded
+// bodies. One Rupantor request consumes two Geocoding API credits.
 func (c *Client) Geocode(ctx context.Context, req *GeocodeRequest) (*GeocodeResponse, error) {
 	if err := requireString("q", req.Q); err != nil {
 		return nil, err
